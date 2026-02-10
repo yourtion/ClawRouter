@@ -28,7 +28,8 @@ import { startProxy, getProxyPort } from "./proxy.js";
 // x402 payment removed - auth and wallet generation no longer needed
 // import { resolveOrGenerateWalletKey, WALLET_FILE } from "./auth.js";
 import type { RoutingConfig } from "./router/index.js";
-import { BalanceMonitor } from "./balance.js";
+// Balance monitoring removed - not needed with API key authentication
+// import { BalanceMonitor } from "./balance.js";
 // Multi-provider support
 import {
   ProviderRegistry,
@@ -627,13 +628,7 @@ export { logUsage } from "./logger.js";
 export type { UsageEntry } from "./logger.js";
 export { RequestDeduplicator } from "./dedup.js";
 export type { CachedResponse } from "./dedup.js";
-export { PaymentCache } from "./payment-cache.js";
-export type { CachedPaymentParams } from "./payment-cache.js";
-export { createPaymentFetch } from "./x402.js";
-export type { PreAuthParams, PaymentFetchResult } from "./x402.js";
-export { BalanceMonitor, BALANCE_THRESHOLDS } from "./balance.js";
-export type { SufficiencyResult } from "./balance.js";
-export type { BalanceInfo as X402BalanceInfo } from "./balance.js";
+// Payment cache removed - x402 payment deprecated
 export {
   InsufficientFundsError,
   EmptyWalletError,
