@@ -61,7 +61,7 @@ try {
 
   const blockrun = new BlockRunProvider();
   await blockrun.initialize({
-    type: AuthType.X402_PAYMENT,
+    type: AuthType.API_KEY,
     credentials: {
       walletKey: '0x0000000000000000000000000000000000000000000000000000000000000001',
     },
@@ -100,7 +100,7 @@ try {
 
   const blockrun = new BlockRunProvider();
   await blockrun.initialize({
-    type: AuthType.X402_PAYMENT,
+    type: AuthType.API_KEY,
     credentials: {
       walletKey: '0x0000000000000000000000000000000000000000000000000000000000000001',
     },
@@ -141,7 +141,7 @@ try {
 
   const blockrun = new BlockRunProvider();
   await blockrun.initialize({
-    type: AuthType.X402_PAYMENT,
+    type: AuthType.API_KEY,
     credentials: {
       walletKey: '0x0000000000000000000000000000000000000000000000000000000000000001',
     },
@@ -173,7 +173,7 @@ try {
 
   const blockrun = new BlockRunProvider();
   await blockrun.initialize({
-    type: AuthType.X402_PAYMENT,
+    type: AuthType.API_KEY,
     credentials: {
       walletKey: '0x0000000000000000000000000000000000000000000000000000000000000001',
     },
@@ -213,7 +213,7 @@ try {
 
   const blockrun = new BlockRunProvider();
   await blockrun.initialize({
-    type: AuthType.X402_PAYMENT,
+    type: AuthType.API_KEY,
     credentials: {
       walletKey: '0x0000000000000000000000000000000000000000000000000000000000000001',
     },
@@ -257,7 +257,7 @@ try {
 
   const blockrun = new BlockRunProvider();
   await blockrun.initialize({
-    type: AuthType.X402_PAYMENT,
+    type: AuthType.API_KEY,
     credentials: {
       walletKey: '0x0000000000000000000000000000000000000000000000000000000000000001',
     },

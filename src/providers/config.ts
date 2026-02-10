@@ -27,9 +27,9 @@ function getDefaultConfig(): ProvidersConfig {
         enabled: true,
         priority: 100,
         auth: {
-          type: AuthType.X402_PAYMENT,
+          type: AuthType.API_KEY,
           credentials: {
-            walletKey: process.env.BLOCKRUN_WALLET_KEY,
+            apiKey: process.env.BLOCKRUN_API_KEY,
           },
         },
         models: {
@@ -54,22 +54,6 @@ function resolveEnvironmentVariables(config: ProvidersConfig): ProvidersConfig {
 
         if (value) {
           provider.auth.credentials.apiKey = value;
-        } else {
-          console.warn(
-            `[Config] Environment variable ${envVar} not set, disabling ${provider.id}`
-          );
-          provider.enabled = false;
-        }
-      }
-    } else if (provider.auth.type === AuthType.X402_PAYMENT) {
-      const walletKey = provider.auth.credentials.walletKey as string;
-
-      if (walletKey?.startsWith("${") && walletKey.endsWith("}")) {
-        const envVar = walletKey.slice(2, -1);
-        const value = process.env[envVar];
-
-        if (value) {
-          provider.auth.credentials.walletKey = value;
         } else {
           console.warn(
             `[Config] Environment variable ${envVar} not set, disabling ${provider.id}`
@@ -178,9 +162,9 @@ export function getExampleConfig(): ProvidersConfig {
         enabled: true,
         priority: 100,
         auth: {
-          type: AuthType.X402_PAYMENT,
+          type: AuthType.API_KEY,
           credentials: {
-            walletKey: "${BLOCKRUN_WALLET_KEY}",
+            apiKey: "${BLOCKRUN_API_KEY}",
           },
         },
         models: {

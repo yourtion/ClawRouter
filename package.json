@@ -56,9 +56,6 @@
     "type": "git",
     "url": "git+https://github.com/BlockRunAI/ClawRouter.git"
   },
-  "dependencies": {
-    "viem": "^2.39.3"
-  },
   "peerDependencies": {
     "openclaw": ">=2025.1.0"
   },

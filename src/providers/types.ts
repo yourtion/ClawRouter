@@ -9,8 +9,7 @@
  * Supported authentication types
  */
 export enum AuthType {
-  X402_PAYMENT = "x402_payment",     // Blockchain micropayments (BlockRun)
-  API_KEY = "api_key",               // Traditional API key (OpenRouter, NVIDIA)
+  API_KEY = "api_key",               // Traditional API key (BlockRun, OpenRouter, NVIDIA)
   OAUTH = "oauth",                   // OAuth 2.0 (future)
   BEARER_TOKEN = "bearer_token",     // Bearer token (future)
   NONE = "none",                     // No authentication (future)

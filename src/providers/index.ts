@@ -39,7 +39,5 @@ export { OpenRouterProvider } from "./implementations/openrouter.js";
 // Authentication
 export type { IAuthStrategy, AuthRefreshResult } from "./auth/types.js";
 export { ApiKeyAuthStrategy } from "./auth/api-key.js";
-export { X402AuthStrategy } from "./auth/x402.js";
 
 export type { ApiKeyOptions } from "./auth/api-key.js";
-export type { X402Options } from "./auth/x402.js";

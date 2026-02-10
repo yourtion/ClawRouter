@@ -1,8 +1,7 @@
 /**
  * BlockRun Provider Implementation
  *
- * Refactors the existing BlockRun provider to use the new IProvider interface.
- * Uses x402 micropayment authentication.
+ * Uses the new IProvider interface with API key authentication.
  */
 
 import type {
@@ -12,19 +11,13 @@ import type {
   RequestContext,
   ProviderResponse,
   AuthConfig,
-  ProviderBalanceInfo,
 } from "../types.js";
 import { AuthType } from "../types.js";
-import { X402AuthStrategy } from "../auth/x402.js";
+import { ApiKeyAuthStrategy } from "../auth/api-key.js";
 import { BLOCKRUN_MODELS } from "../../models.js";
-import { BalanceMonitor } from "../../balance.js";
-import type { ProxyHandle } from "../../proxy.js";
-import type { PaymentFetchResult } from "../../x402.js";
 
 export interface BlockRunOptions {
-  walletKey: `0x${string}`;
-  proxyHandle?: ProxyHandle;
-  paymentFetch?: PaymentFetchResult;
+  apiKey: string;
 }
 
 export class BlockRunProvider implements IProvider {
@@ -32,10 +25,10 @@ export class BlockRunProvider implements IProvider {
     id: "blockrun",
     name: "BlockRun",
     version: "2.0.0",
-    description: "x402 micropayments, 30+ models",
+    description: "API key authentication, 30+ models",
     docsUrl: "https://blockrun.ai/docs",
     baseUrl: "https://blockrun.ai/api",
-    authType: AuthType.X402_PAYMENT,
+    authType: AuthType.API_KEY,
     capabilities: {
       streaming: true,
       reasoningModels: true,
@@ -45,40 +38,24 @@ export class BlockRunProvider implements IProvider {
     priority: 100, // Highest priority by default
   };
 
-  private authStrategy?: X402AuthStrategy;
-  private balanceMonitor?: BalanceMonitor;
-  private proxyHandle?: ProxyHandle;
+  private authStrategy?: ApiKeyAuthStrategy;
   private models: StandardModel[] = [];
 
   constructor(options?: BlockRunOptions) {
-    if (options?.proxyHandle) {
-      this.proxyHandle = options.proxyHandle;
-      // Update baseUrl to point to local proxy
-      this.metadata.baseUrl = options.proxyHandle.baseUrl;
+    if (options?.apiKey) {
+      this.authStrategy = new ApiKeyAuthStrategy({ apiKey: options.apiKey });
     }
   }
 
   async initialize(config: AuthConfig): Promise<void> {
-    // Initialize x402 authentication
-    const walletKey = config.credentials.walletKey as `0x${string}`;
-    if (!walletKey) {
-      throw new Error("BlockRun requires a wallet key for x402 authentication");
+    // Initialize API key authentication
+    const apiKey = config.credentials.apiKey as string;
+    if (!apiKey) {
+      throw new Error("BlockRun requires an API key for authentication");
     }
 
-    this.authStrategy = new X402AuthStrategy({
-      walletKey,
-      paymentFetch: config.credentials.paymentFetch as PaymentFetchResult,
-    });
-
+    this.authStrategy = new ApiKeyAuthStrategy({ apiKey });
     await this.authStrategy.initialize(config.credentials);
-
-    // Initialize balance monitor
-    if (walletKey) {
-      // Import viem functions dynamically
-      const { privateKeyToAccount } = await import("viem/accounts");
-      const account = privateKeyToAccount(walletKey);
-      this.balanceMonitor = new BalanceMonitor(account.address);
-    }
 
     // Convert existing BlockRun models to standard format
     this.models = BLOCKRUN_MODELS.map((m) => this.convertToStandardModel(m));
@@ -107,36 +84,11 @@ export class BlockRunProvider implements IProvider {
       // Normalize model ID (remove "blockrun/" prefix if present)
       const normalizedModel = request.model.replace(/^blockrun\//, "");
 
-      // Check balance
-      if (this.balanceMonitor) {
-        const estimatedCost = this.estimateCost({
-          ...request,
-          model: normalizedModel,
-        });
+      // Prepare request with API key auth
+      const headers = await this.authStrategy?.prepareHeaders(request) || {};
 
-        const estimatedCostMicros = BigInt(Math.ceil(estimatedCost * 1_000_000));
-        const sufficiency = await this.balanceMonitor.checkSufficient(estimatedCostMicros);
-
-        if (!sufficiency.sufficient) {
-          return {
-            success: false,
-            error: {
-              code: "INSUFFICIENT_FUNDS",
-              message: `Insufficient balance: ${sufficiency.info.balanceUSD}`,
-              statusCode: 402,
-              retryable: false,
-            },
-          };
-        }
-      }
-
-      // Prepare request
-      const headers = await this.authStrategy.prepareHeaders(request);
-      const paymentFetch = this.authStrategy.getPaymentFetch();
-
-      // Determine URL (use proxy if available, otherwise direct to BlockRun API)
-      const baseUrl = this.proxyHandle?.baseUrl || this.metadata.baseUrl;
-      const url = `${baseUrl}/v1/chat/completions`;
+      // Build URL
+      const url = `${this.metadata.baseUrl}/v1/chat/completions`;
 
       // Build request body
       const requestBody = this.buildRequestBody({
@@ -144,10 +96,8 @@ export class BlockRunProvider implements IProvider {
         model: normalizedModel,
       });
 
-      // Execute request with payment fetch
-      const fetchFn = paymentFetch?.fetch || fetch;
-
-      const response = await fetchFn(url, {
+      // Execute request
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -159,48 +109,13 @@ export class BlockRunProvider implements IProvider {
       const latencyMs = Date.now() - startTime;
 
       if (!response.ok) {
-        // Try to handle auth failure
-        if (this.authStrategy.handleAuthFailure) {
-          const refreshResult = await this.authStrategy.handleAuthFailure({
-            statusCode: response.status,
-            headers: response.headers,
-          });
-
-          if (refreshResult.retryable) {
-            // Retry once
-            const retryResponse = await fetchFn(url, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                ...headers,
-                ...(refreshResult.newHeaders || {}),
-              },
-              body: JSON.stringify(requestBody),
-            });
-
-            if (retryResponse.ok) {
-              const data = await retryResponse.json();
-              return {
-                success: true,
-                data,
-                metadata: {
-                  model: request.model,
-                  tokensUsed: data.usage,
-                  cost: this.estimateCost(request),
-                  latencyMs: Date.now() - startTime,
-                },
-              };
-            }
-          }
-        }
-
         return {
           success: false,
           error: {
             code: `HTTP_${response.status}`,
             message: await response.text(),
             statusCode: response.status,
-            retryable: [401, 402, 429, 500, 502, 503].includes(response.status),
+            retryable: [401, 429, 500, 502, 503].includes(response.status),
           },
         };
       }
@@ -230,35 +145,6 @@ export class BlockRunProvider implements IProvider {
     }
   }
 
-  async checkBalance(estimatedCost?: number): Promise<ProviderBalanceInfo> {
-    if (!this.balanceMonitor) {
-      return {
-        available: false,
-        balance: "0",
-        currency: "USD",
-        lowBalance: false,
-        isEmpty: false,
-        sufficient: false,
-      };
-    }
-
-    const info = await this.balanceMonitor.checkBalance();
-
-    const sufficient = estimatedCost
-      ? info.balanceUSDNumber >= estimatedCost
-      : true;
-
-    return {
-      available: true,
-      balance: info.balanceUSD,
-      balanceNumber: info.balanceUSDNumber,
-      currency: "USD",
-      lowBalance: info.isLow,
-      isEmpty: info.isEmpty,
-      sufficient,
-    };
-  }
-
   estimateCost(request: RequestContext): number {
     const model = this.models.find((m) =>
       m.id === request.model || m.id === request.model.replace(/^blockrun\//, "")
@@ -277,9 +163,7 @@ export class BlockRunProvider implements IProvider {
 
   async healthCheck(): Promise<boolean> {
     try {
-      const url = this.proxyHandle
-        ? `${this.proxyHandle.baseUrl}/health`
-        : `${this.metadata.baseUrl}/health`;
+      const url = `${this.metadata.baseUrl}/health`;
 
       const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
       return response.ok;

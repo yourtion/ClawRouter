@@ -78,9 +78,9 @@ describe("Multi-Provider E2E Tests with memfs", () => {
             enabled: true,
             priority: 100,
             auth: {
-              type: AuthType.X402_PAYMENT,
+              type: AuthType.API_KEY,
               credentials: {
-                walletKey: "0x0000000000000000000000000000000000000000000000000000000000000001",
+                apiKey: "sk-test-blockrun-key",
               },
             },
           },
@@ -105,9 +105,9 @@ describe("Multi-Provider E2E Tests with memfs", () => {
             enabled: true,
             priority: 100,
             auth: {
-              type: AuthType.X402_PAYMENT,
+              type: AuthType.API_KEY,
               credentials: {
-                walletKey: "0x0000000000000000000000000000000000000000000000000000000000000001",
+                apiKey: "sk-test-blockrun-key",
               },
             },
           },
@@ -144,9 +144,9 @@ describe("Multi-Provider E2E Tests with memfs", () => {
             enabled: true,
             priority: 100,
             auth: {
-              type: AuthType.X402_PAYMENT,
+              type: AuthType.API_KEY,
               credentials: {
-                walletKey: "0x0000000000000000000000000000000000000000000000000000000000000001",
+                apiKey: "sk-test-blockrun-key",
               },
             },
           },
@@ -246,9 +246,9 @@ describe("Multi-Provider E2E Tests with memfs", () => {
         enabled: true,
         priority: 100,
         auth: {
-          type: AuthType.X402_PAYMENT,
+          type: AuthType.API_KEY,
           credentials: {
-            walletKey: "0x0000000000000000000000000000000000000000000000000000000000000001",
+            apiKey: "sk-test-blockrun-key",
           },
         },
       };
@@ -257,7 +257,7 @@ describe("Multi-Provider E2E Tests with memfs", () => {
 
       expect(provider).toBeDefined();
       expect(provider.metadata.id).toBe("blockrun");
-      expect(provider.metadata.authType).toBe(AuthType.X402_PAYMENT);
+      expect(provider.metadata.authType).toBe(AuthType.API_KEY);
     });
 
     it("should create OpenRouter provider from config", async () => {
@@ -321,9 +321,9 @@ describe("Multi-Provider E2E Tests with memfs", () => {
     it("should check model availability for BlockRun", async () => {
       const blockrun = new BlockRunProvider();
       await blockrun.initialize({
-        type: AuthType.X402_PAYMENT,
+        type: AuthType.API_KEY,
         credentials: {
-          walletKey: "0x0000000000000000000000000000000000000000000000000000000000000001",
+          apiKey: "sk-test-blockrun-key",
         },
       });
       registry.register(blockrun);
@@ -335,9 +335,9 @@ describe("Multi-Provider E2E Tests with memfs", () => {
     it("should aggregate models from all providers", async () => {
       const blockrun = new BlockRunProvider();
       await blockrun.initialize({
-        type: AuthType.X402_PAYMENT,
+        type: AuthType.API_KEY,
         credentials: {
-          walletKey: "0x0000000000000000000000000000000000000000000000000000000000000001",
+          apiKey: "sk-test-blockrun-key",
         },
       });
 
@@ -366,9 +366,9 @@ describe("Multi-Provider E2E Tests with memfs", () => {
     it("should return unique models", async () => {
       const blockrun = new BlockRunProvider();
       await blockrun.initialize({
-        type: AuthType.X402_PAYMENT,
+        type: AuthType.API_KEY,
         credentials: {
-          walletKey: "0x0000000000000000000000000000000000000000000000000000000000000001",
+          apiKey: "sk-test-blockrun-key",
         },
       });
       registry.register(blockrun);
@@ -428,8 +428,7 @@ describe("Multi-Provider E2E Tests with memfs", () => {
       const stats = registry.getStats();
 
       expect(stats.total).toBe(2);
-      expect(stats.byAuthType[AuthType.X402_PAYMENT]).toBe(1);
-      expect(stats.byAuthType[AuthType.API_KEY]).toBe(1);
+      expect(stats.byAuthType[AuthType.API_KEY]).toBe(2);
       expect(stats.byPriority["90-100"]).toBe(2);
     });
 
@@ -486,9 +485,9 @@ describe("Multi-Provider E2E Tests with memfs", () => {
 
       const blockrun = new BlockRunProvider();
       await blockrun.initialize({
-        type: AuthType.X402_PAYMENT,
+        type: AuthType.API_KEY,
         credentials: {
-          walletKey: "0x0000000000000000000000000000000000000000000000000000000000000001",
+          apiKey: "sk-test-blockrun-key",
         },
       });
 
@@ -514,7 +513,7 @@ describe("Multi-Provider E2E Tests with memfs", () => {
 
       expect(provider.metadata.id).toBe("blockrun");
       expect(provider.metadata.name).toBe("BlockRun");
-      expect(provider.metadata.authType).toBe(AuthType.X402_PAYMENT);
+      expect(provider.metadata.authType).toBe(AuthType.API_KEY);
       expect(provider.metadata.priority).toBe(100);
       expect(provider.metadata.baseUrl).toBe("https://blockrun.ai/api");
       expect(provider.metadata.version).toBeDefined();
@@ -549,9 +548,9 @@ describe("Multi-Provider E2E Tests with memfs", () => {
     it("should cleanup all providers", async () => {
       const blockrun = new BlockRunProvider();
       await blockrun.initialize({
-        type: AuthType.X402_PAYMENT,
+        type: AuthType.API_KEY,
         credentials: {
-          walletKey: "0x0000000000000000000000000000000000000000000000000000000000000001",
+          apiKey: "sk-test-blockrun-key",
         },
       });
 
@@ -576,9 +575,9 @@ describe("Multi-Provider E2E Tests with memfs", () => {
     it("should allow re-registration after cleanup", async () => {
       const blockrun = new BlockRunProvider();
       await blockrun.initialize({
-        type: AuthType.X402_PAYMENT,
+        type: AuthType.API_KEY,
         credentials: {
-          walletKey: "0x0000000000000000000000000000000000000000000000000000000000000001",
+          apiKey: "sk-test-blockrun-key",
         },
       });
 
@@ -597,9 +596,9 @@ describe("Multi-Provider E2E Tests with memfs", () => {
     it("should estimate cost for BlockRun provider", async () => {
       const blockrun = new BlockRunProvider();
       await blockrun.initialize({
-        type: AuthType.X402_PAYMENT,
+        type: AuthType.API_KEY,
         credentials: {
-          walletKey: "0x0000000000000000000000000000000000000000000000000000000000000001",
+          apiKey: "sk-test-blockrun-key",
         },
       });
 
@@ -643,9 +642,9 @@ describe("Multi-Provider E2E Tests with memfs", () => {
     it("should estimate higher cost for more tokens", async () => {
       const blockrun = new BlockRunProvider();
       await blockrun.initialize({
-        type: AuthType.X402_PAYMENT,
+        type: AuthType.API_KEY,
         credentials: {
-          walletKey: "0x0000000000000000000000000000000000000000000000000000000000000001",
+          apiKey: "sk-test-blockrun-key",
         },
       });
 

@@ -59,7 +59,6 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync } from 
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { VERSION } from "./version.js";
-import { privateKeyToAccount } from "viem/accounts";
 import { getStats, formatStatsAscii } from "./stats.js";
 
 /**
@@ -107,7 +106,6 @@ async function initializeProviders(
 
       try {
         // Add wallet key to credentials for x402 providers
-        if (providerConfig.auth.type === "x402_payment") {
           providerConfig.auth.credentials.walletKey =
             providerConfig.auth.credentials.walletKey || walletKey;
         }
@@ -527,7 +525,7 @@ async function createWalletCommand(): Promise<OpenClawPluginCommandDefinition> {
         if (existsSync(WALLET_FILE)) {
           walletKey = readFileSync(WALLET_FILE, "utf-8").trim();
           if (walletKey.startsWith("0x") && walletKey.length === 66) {
-            const account = privateKeyToAccount(walletKey as `0x${string}`);
+            const account = walletKey(walletKey as `0x${string}`);
             address = account.address;
           }
         }
