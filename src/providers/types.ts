@@ -111,7 +111,7 @@ export interface ProviderResponse {
 /**
  * Balance information (for providers with billing)
  */
-export interface BalanceInfo {
+export interface ProviderBalanceInfo {
   available: boolean;                // Is available
   balance: string;                   // Balance in smallest unit (e.g., USDC micros)
   balanceNumber?: number;            // Balance in standard unit (e.g., USD)
@@ -141,7 +141,7 @@ export interface IProvider {
   execute(request: RequestContext): Promise<ProviderResponse>;
 
   /** Check balance (if applicable) */
-  checkBalance?(estimatedCost?: number): Promise<BalanceInfo>;
+  checkBalance?(estimatedCost?: number): Promise<ProviderBalanceInfo>;
 
   /** Estimate request cost */
   estimateCost(request: RequestContext): number;

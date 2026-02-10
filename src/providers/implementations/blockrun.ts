@@ -12,7 +12,7 @@ import type {
   RequestContext,
   ProviderResponse,
   AuthConfig,
-  BalanceInfo,
+  ProviderBalanceInfo,
 } from "../types.js";
 import { AuthType } from "../types.js";
 import { X402AuthStrategy } from "../auth/x402.js";
@@ -230,7 +230,7 @@ export class BlockRunProvider implements IProvider {
     }
   }
 
-  async checkBalance(estimatedCost?: number): Promise<BalanceInfo> {
+  async checkBalance(estimatedCost?: number): Promise<ProviderBalanceInfo> {
     if (!this.balanceMonitor) {
       return {
         available: false,

@@ -5,7 +5,7 @@
  */
 
 // Core types and interfaces
-export {
+export type {
   IProvider,
   ProviderConfig,
   ProvidersConfig,
@@ -13,10 +13,10 @@ export {
   StandardModel,
   RequestContext,
   ProviderResponse,
-  BalanceInfo,
+  ProviderBalanceInfo,
   AuthConfig,
-  AuthType,
 } from "./types.js";
+export { AuthType } from "./types.js";
 
 // Registry
 export { ProviderRegistry } from "./registry.js";
@@ -37,12 +37,9 @@ export { BlockRunProvider } from "./implementations/blockrun.js";
 export { OpenRouterProvider } from "./implementations/openrouter.js";
 
 // Authentication
-export {
-  IAuthStrategy,
-  AuthRefreshResult,
-  ApiKeyAuthStrategy,
-  X402AuthStrategy,
-} from "./auth/index.js";
+export type { IAuthStrategy, AuthRefreshResult } from "./auth/types.js";
+export { ApiKeyAuthStrategy } from "./auth/api-key.js";
+export { X402AuthStrategy } from "./auth/x402.js";
 
 export type { ApiKeyOptions } from "./auth/api-key.js";
 export type { X402Options } from "./auth/x402.js";

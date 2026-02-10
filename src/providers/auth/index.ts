@@ -4,7 +4,7 @@
  * Exports all authentication strategy implementations
  */
 
-export { IAuthStrategy, AuthRefreshResult } from "./types.js";
+export type { IAuthStrategy, AuthRefreshResult } from "./types.js";
 export { ApiKeyAuthStrategy } from "./api-key.js";
 export { X402AuthStrategy } from "./x402.js";
 

@@ -34,6 +34,8 @@ export type BalanceInfo = {
   balance: bigint;
   /** Formatted balance as "$X.XX" */
   balanceUSD: string;
+  /** Balance as number (for calculations) */
+  balanceUSDNumber: number;
   /** True if balance < $1.00 */
   isLow: boolean;
   /** True if balance < $0.0001 (effectively zero) */
@@ -186,6 +188,7 @@ export class BalanceMonitor {
     return {
       balance,
       balanceUSD: this.formatUSDC(balance),
+      balanceUSDNumber: Number(balance) / 1_000_000, // Convert to USD number
       isLow: balance < BALANCE_THRESHOLDS.LOW_BALANCE_MICROS,
       isEmpty: balance < BALANCE_THRESHOLDS.ZERO_THRESHOLD,
       walletAddress: this.walletAddress,

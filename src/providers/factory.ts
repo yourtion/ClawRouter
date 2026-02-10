@@ -6,18 +6,24 @@
 
 import type { IProvider } from "./types.js";
 import type { ProviderConfig } from "./types.js";
+import type { BlockRunOptions } from "./implementations/blockrun.js";
+import type { OpenRouterOptions } from "./implementations/openrouter.js";
 import { BlockRunProvider } from "./implementations/blockrun.js";
 import { OpenRouterProvider } from "./implementations/openrouter.js";
+
+type ProviderConstructor = new (options?: unknown) => IProvider;
 
 /**
  * Provider factory
  */
 export class ProviderFactory {
-  private static providerTypes = new Map<string, new (options?: unknown) => IProvider>([
-    ["blockrun", BlockRunProvider],
-    ["openrouter", OpenRouterProvider],
-    // Future providers can be registered here
-  ]);
+  private static providerTypes = new Map<string, ProviderConstructor>();
+
+  // Initialize with default providers
+  static {
+    ProviderFactory.providerTypes.set("blockrun", BlockRunProvider as ProviderConstructor);
+    ProviderFactory.providerTypes.set("openrouter", OpenRouterProvider as ProviderConstructor);
+  }
 
   /**
    * Register a custom provider type

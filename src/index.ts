@@ -28,6 +28,14 @@ import { startProxy, getProxyPort } from "./proxy.js";
 import { resolveOrGenerateWalletKey, WALLET_FILE } from "./auth.js";
 import type { RoutingConfig } from "./router/index.js";
 import { BalanceMonitor } from "./balance.js";
+// Multi-provider support
+import {
+  ProviderRegistry,
+  ProviderFactory,
+  loadConfig,
+  BlockRunProvider,
+  OpenRouterProvider,
+} from "./providers/index.js";
 
 /**
  * Wait for proxy health check to pass (quick check, not RPC).
@@ -65,6 +73,147 @@ function isCompletionMode(): boolean {
   // Check for: openclaw completion --shell <shell>
   // argv[0] = node/bun, argv[1] = openclaw, argv[2] = completion
   return args.some((arg, i) => arg === "completion" && i >= 1 && i <= 3);
+}
+
+/**
+ * Load and initialize providers from configuration.
+ * Uses ProviderRegistry if multi-provider mode is enabled.
+ */
+async function initializeProviders(
+  api: OpenClawPluginApi,
+  walletKey: string
+): Promise<void> {
+  // Check if multi-provider mode is enabled
+  const multiProviderEnabled =
+    process.env.OPENCLAW_ROUTER_MULTI_PROVIDER === "true" ||
+    process.env.CLAWROUTER_MULTI_PROVIDER === "true";
+
+  if (!multiProviderEnabled) {
+    // Legacy single-provider mode (BlockRun only)
+    api.logger.info("Multi-provider mode disabled. Using legacy BlockRun-only mode.");
+    return;
+  }
+
+  api.logger.info("Multi-provider mode enabled. Loading provider configuration...");
+
+  try {
+    // Load provider configuration
+    const config = await loadConfig();
+
+    if (config.providers.length === 0) {
+      api.logger.warn("No providers configured. Using default BlockRun provider.");
+      return;
+    }
+
+    // Initialize provider registry
+    const registry = ProviderRegistry.getInstance();
+
+    // Create provider instances
+    for (const providerConfig of config.providers) {
+      if (!providerConfig.enabled) {
+        continue;
+      }
+
+      try {
+        // Add wallet key to credentials for x402 providers
+        if (providerConfig.auth.type === "x402_payment") {
+          providerConfig.auth.credentials.walletKey =
+            providerConfig.auth.credentials.walletKey || walletKey;
+        }
+
+        const provider = await ProviderFactory.create(providerConfig);
+        registry.register(provider);
+
+        api.logger.info(`Registered provider: ${providerConfig.id} (priority: ${providerConfig.priority})`);
+      } catch (err) {
+        api.logger.warn(
+          `Failed to initialize provider ${providerConfig.id}: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    }
+
+    // Health check all providers
+    api.logger.info("Running provider health checks...");
+    const healthResults = await registry.healthCheckAll();
+
+    for (const [id, healthy] of healthResults) {
+      if (healthy) {
+        api.logger.info(`✓ Provider ${id} is healthy`);
+      } else {
+        api.logger.warn(`✗ Provider ${id} health check failed`);
+      }
+    }
+
+    // Inject provider configurations into OpenClaw config
+    await injectMultiProviderConfig(api, registry);
+  } catch (err) {
+    api.logger.error(
+      `Failed to initialize providers: ${err instanceof Error ? err.message : String(err)}`
+    );
+    api.logger.info("Falling back to legacy BlockRun-only mode.");
+  }
+}
+
+/**
+ * Inject multi-provider model configurations into OpenClaw config.
+ */
+async function injectMultiProviderConfig(
+  api: OpenClawPluginApi,
+  registry: ProviderRegistry
+): Promise<void> {
+  const configPath = join(homedir(), ".openclaw", "openclaw.json");
+  if (!existsSync(configPath)) {
+    api.logger.info("OpenClaw config not found, skipping multi-provider injection");
+    return;
+  }
+
+  try {
+    const config = JSON.parse(readFileSync(configPath, "utf-8"));
+
+    if (!config.models) config.models = {};
+    if (!config.models.providers) config.models.providers = {};
+
+    // Get all models from all providers
+    const allModels = await registry.getAllModels();
+
+    // For now, we'll inject models under each provider's ID
+    // This allows users to reference models as "provider-id/model-name"
+    for (const provider of registry.getEnabled()) {
+      const providerId = provider.metadata.id;
+      const proxyPort = getProxyPort();
+
+      // For BlockRun, use the proxy URL
+      // For other providers, use their base URL directly
+      const baseUrl =
+        providerId === "blockrun"
+          ? `http://127.0.0.1:${proxyPort}/v1`
+          : provider.metadata.baseUrl.replace(/\/$/, ""); // Remove trailing slash
+
+      config.models.providers[providerId] = {
+        baseUrl,
+        api: "openai-completions",
+        apiKey: provider.metadata.authType === "api_key" ? "provider-handles-api-key" : "x402-proxy-handles-auth",
+        models: allModels
+          .filter((m) => m.providerId === providerId)
+          .map((m) => ({
+            id: m.id,
+            name: m.name,
+            api: m.api,
+            reasoning: m.reasoning,
+            input: m.input,
+            cost: m.cost,
+            contextWindow: m.contextWindow,
+            maxTokens: m.maxTokens,
+          })),
+      };
+    }
+
+    // Write updated config
+    writeFileSync(configPath, JSON.stringify(config, null, 2));
+    api.logger.info("Multi-provider models configuration injected");
+  } catch (err) {
+    api.logger.warn(`Failed to inject multi-provider config: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 /**
@@ -480,6 +629,12 @@ const plugin: OpenClawPluginDefinition = {
     // Register BlockRun as a provider (sync — available immediately)
     api.registerProvider(blockrunProvider);
 
+    // Initialize multi-provider support (if enabled)
+    // This loads additional providers from configuration
+    const walletInfo = await resolveOrGenerateWalletKey();
+    const walletKey = typeof walletInfo === "string" ? walletInfo : walletInfo.key;
+    await initializeProviders(api, walletKey);
+
     // Inject models config into OpenClaw config file
     // This persists the config so models are recognized on restart
     injectModelsConfig(api.logger);
@@ -584,6 +739,26 @@ export default plugin;
 export { startProxy, getProxyPort } from "./proxy.js";
 export type { ProxyOptions, ProxyHandle, LowBalanceInfo, InsufficientFundsInfo } from "./proxy.js";
 export { blockrunProvider } from "./provider.js";
+// Multi-provider exports
+export {
+  ProviderRegistry,
+  ProviderFactory,
+  loadConfig,
+  saveConfig,
+  BlockRunProvider,
+  OpenRouterProvider,
+} from "./providers/index.js";
+export type {
+  IProvider,
+  ProviderConfig,
+  ProviderMetadata,
+  StandardModel,
+  RequestContext,
+  ProviderResponse,
+  ProviderBalanceInfo,
+  AuthConfig,
+  AuthType,
+} from "./providers/index.js";
 export {
   OPENCLAW_MODELS,
   BLOCKRUN_MODELS,
@@ -610,7 +785,8 @@ export type { CachedPaymentParams } from "./payment-cache.js";
 export { createPaymentFetch } from "./x402.js";
 export type { PreAuthParams, PaymentFetchResult } from "./x402.js";
 export { BalanceMonitor, BALANCE_THRESHOLDS } from "./balance.js";
-export type { BalanceInfo, SufficiencyResult } from "./balance.js";
+export type { SufficiencyResult } from "./balance.js";
+export type { BalanceInfo as X402BalanceInfo } from "./balance.js";
 export {
   InsufficientFundsError,
   EmptyWalletError,
