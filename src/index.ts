@@ -738,6 +738,7 @@ export {
   saveConfig,
   BlockRunProvider,
   OpenRouterProvider,
+  AuthType,
 } from "./providers/index.js";
 export type {
   IProvider,
@@ -748,7 +749,6 @@ export type {
   ProviderResponse,
   ProviderBalanceInfo,
   AuthConfig,
-  AuthType,
 } from "./providers/index.js";
 export {
   OPENCLAW_MODELS,

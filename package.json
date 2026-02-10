@@ -70,6 +70,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "eslint": "^9.39.2",
+    "memfs": "^4.56.10",
     "openclaw": "latest",
     "prettier": "^3.8.1",
     "tsup": "^8.0.0",

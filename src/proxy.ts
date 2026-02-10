@@ -46,6 +46,14 @@ import { BalanceMonitor } from "./balance.js";
 // import { InsufficientFundsError, EmptyWalletError } from "./errors.js";
 import { USER_AGENT } from "./version.js";
 import { SessionStore, getSessionId, type SessionConfig } from "./session.js";
+// Multi-provider support
+import {
+  ProviderRegistry,
+  type IProvider,
+  type RequestContext,
+  type ProviderResponse,
+  type StandardModel,
+} from "./providers/index.js";
 
 const BLOCKRUN_API = "https://blockrun.ai/api";
 const AUTO_MODEL = "blockrun/auto";
@@ -797,6 +805,125 @@ type ModelRequestResult = {
   isProviderError?: boolean;
 };
 
+/** Provider + Model combination for cross-provider fallback */
+type ProviderModelPair = {
+  provider: IProvider;
+  model: StandardModel;
+  priority: number;
+};
+
+/**
+ * Extract provider ID from model ID (e.g., "openrouter/openai/gpt-4o" -> "openrouter").
+ * Returns "blockrun" if no provider prefix is found.
+ */
+function extractProviderId(modelId: string): string {
+  if (!modelId || typeof modelId !== "string") return "blockrun";
+
+  // Check for known provider prefixes
+  const knownProviders = ["openrouter", "nvidia", "openai", "anthropic", "google", "meta"];
+
+  for (const provider of knownProviders) {
+    if (modelId.startsWith(`${provider}/`)) {
+      return provider;
+    }
+  }
+
+  // Default to blockrun for legacy models
+  return "blockrun";
+}
+
+/**
+ * Build cross-provider fallback chain for a given model.
+ * Returns provider+model pairs sorted by provider priority.
+ */
+async function buildProviderFallbackChain(
+  modelId: string,
+  registry: ProviderRegistry
+): Promise<ProviderModelPair[]> {
+  const pairs: ProviderModelPair[] = [];
+
+  // Get all providers sorted by priority
+  const providers = registry.getByPriority();
+
+  for (const provider of providers) {
+    try {
+      const models = await provider.getModels();
+
+      // Find exact model match or compatible alternative
+      const exactMatch = models.find((m) => m.id === modelId);
+
+      if (exactMatch) {
+        pairs.push({
+          provider,
+          model: exactMatch,
+          priority: provider.metadata.priority,
+        });
+      } else {
+        // Check if provider has a compatible model (same base model, different provider prefix)
+        const baseModelId = modelId.includes("/") ? modelId.split("/")[1] : modelId;
+        const compatible = models.find((m) => {
+          const mBaseId = m.id.includes("/") ? m.id.split("/")[1] : m.id;
+          return mBaseId === baseModelId;
+        });
+
+        if (compatible) {
+          pairs.push({
+            provider,
+            model: compatible,
+            priority: provider.metadata.priority,
+          });
+        }
+      }
+    } catch {
+      // Provider error - skip this provider
+      continue;
+    }
+  }
+
+  // Sort by priority (descending)
+  pairs.sort((a, b) => b.priority - a.priority);
+
+  return pairs;
+}
+
+/**
+ * Attempt a request with a specific provider using IProvider interface.
+ * This is the multi-provider version of tryModelRequest.
+ */
+async function tryProviderRequest(
+  provider: IProvider,
+  model: StandardModel,
+  body: Buffer,
+  signal: AbortSignal
+): Promise<ProviderResponse> {
+  try {
+    // Parse request body to build RequestContext
+    const parsed = JSON.parse(body.toString()) as Record<string, unknown>;
+
+    const request: RequestContext = {
+      model: model.id,
+      messages: (parsed.messages as Array<{ role: string; content: unknown }>) || [],
+      maxTokens: (parsed.max_tokens as number) || model.maxTokens,
+      temperature: (parsed.temperature as number),
+      stream: (parsed.stream as boolean) || false,
+      tools: (parsed.tools as unknown[]) || undefined,
+      sessionId: (parsed.session_id as string) || undefined,
+    };
+
+    return await provider.execute(request);
+  } catch (err) {
+    return {
+      success: false,
+      error: {
+        code: "PROVIDER_ERROR",
+        message: err instanceof Error ? err.message : String(err),
+        statusCode: 500,
+        retryable: true,
+      },
+    };
+  }
+}
+
 /**
  * Attempt a request with a specific model.
  * Returns the response or error details for fallback decision.
@@ -1187,8 +1314,11 @@ async function proxyRequest(
 
   try {
     // --- Build fallback chain ---
-    // If we have a routing decision, get the full fallback chain for the tier
-    // Otherwise, just use the current model (no fallback for explicit model requests)
+    // Check if multi-provider mode is available
+    const registry = ProviderRegistry.getInstance();
+    const providers = registry.getAll();
+    const hasMultiProvider = providers.length > 0;
+
     let modelsToTry: string[];
     if (routingDecision) {
       // Estimate total context: input tokens (~4 chars per token) + max output tokens
@@ -1224,6 +1354,13 @@ async function proxyRequest(
 
       // Deprioritize rate-limited models (put them at the end)
       modelsToTry = prioritizeNonRateLimited(modelsToTry);
+
+      // Log multi-provider status
+      if (hasMultiProvider) {
+        console.log(
+          `[ClawRouter] Multi-provider mode: ${providers.length} providers available (${providers.map((p) => p.metadata.id).join(", ")})`,
+        );
+      }
     } else {
       modelsToTry = modelId ? [modelId] : [];
     }
@@ -1239,17 +1376,74 @@ async function proxyRequest(
 
       console.log(`[ClawRouter] Trying model ${i + 1}/${modelsToTry.length}: ${tryModel}`);
 
-      const result = await tryModelRequest(
-        upstreamUrl,
-        req.method ?? "POST",
-        headers,
-        body,
-        tryModel,
-        maxTokens,
-        payFetch,
-        balanceMonitor,
-        controller.signal,
-      );
+      // Check if we should use multi-provider or legacy BlockRun mode
+      const providerId = extractProviderId(tryModel);
+      let result: ModelRequestResult;
+
+      if (hasMultiProvider && providerId !== "blockrun") {
+        // Multi-provider mode: use IProvider interface
+        const provider = registry.get(providerId);
+        if (provider) {
+          console.log(`[ClawRouter] Using multi-provider mode with ${providerId}`);
+
+          const providerResponse = await tryProviderRequest(
+            provider,
+            { id: tryModel } as StandardModel, // Simplified model object
+            body,
+            controller.signal,
+          );
+
+          if (providerResponse.success && providerResponse.data) {
+            // Convert ProviderResponse to Response-like object
+            const responseData = providerResponse.data as {
+              choices?: Array<{ message?: { content?: string } }>;
+            };
+            const content = JSON.stringify(responseData);
+
+            result = {
+              success: true,
+              response: new Response(content, {
+                status: 200,
+                headers: { "content-type": "application/json" },
+              }),
+            };
+          } else {
+            result = {
+              success: false,
+              errorBody: providerResponse.error?.message || "Provider request failed",
+              errorStatus: providerResponse.error?.statusCode || 500,
+              isProviderError: providerResponse.error?.retryable ?? true,
+            };
+          }
+        } else {
+          // Provider not found, fall back to legacy mode
+          console.log(`[ClawRouter] Provider ${providerId} not found, using legacy BlockRun mode`);
+          result = await tryModelRequest(
+            upstreamUrl,
+            req.method ?? "POST",
+            headers,
+            body,
+            tryModel,
+            maxTokens,
+            payFetch,
+            balanceMonitor,
+            controller.signal,
+          );
+        }
+      } else {
+        // Legacy BlockRun mode
+        result = await tryModelRequest(
+          upstreamUrl,
+          req.method ?? "POST",
+          headers,
+          body,
+          tryModel,
+          maxTokens,
+          payFetch,
+          balanceMonitor,
+          controller.signal,
+        );
+      }
 
       if (result.success && result.response) {
         upstream = result.response;
