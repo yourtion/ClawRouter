@@ -77,24 +77,15 @@ function isCompletionMode(): boolean {
 
 /**
  * Load and initialize providers from configuration.
- * Uses ProviderRegistry if multi-provider mode is enabled.
+ * Multi-provider mode is now enabled by default.
  */
 async function initializeProviders(
   api: OpenClawPluginApi,
   walletKey: string
 ): Promise<void> {
-  // Check if multi-provider mode is enabled
-  const multiProviderEnabled =
-    process.env.OPENCLAW_ROUTER_MULTI_PROVIDER === "true" ||
-    process.env.CLAWROUTER_MULTI_PROVIDER === "true";
-
-  if (!multiProviderEnabled) {
-    // Legacy single-provider mode (BlockRun only)
-    api.logger.info("Multi-provider mode disabled. Using legacy BlockRun-only mode.");
-    return;
-  }
-
-  api.logger.info("Multi-provider mode enabled. Loading provider configuration...");
+  // Multi-provider mode is now enabled by default
+  // Can still be disabled by not having a config file
+  api.logger.info("Initializing multi-provider support...");
 
   try {
     // Load provider configuration
@@ -150,7 +141,7 @@ async function initializeProviders(
     api.logger.error(
       `Failed to initialize providers: ${err instanceof Error ? err.message : String(err)}`
     );
-    api.logger.info("Falling back to legacy BlockRun-only mode.");
+    api.logger.info("Multi-provider initialization failed, using legacy BlockRun-only mode.");
   }
 }
 
@@ -615,7 +606,7 @@ const plugin: OpenClawPluginDefinition = {
     const isDisabled =
       process.env.CLAWROUTER_DISABLED === "true" || process.env.CLAWROUTER_DISABLED === "1";
     if (isDisabled) {
-      api.logger.info("ClawRouter disabled (CLAWROUTER_DISABLED=true). Using default routing.");
+      api.logger.info("OpenClaw Router disabled (CLAWROUTER_DISABLED=true). Using default routing.");
       return;
     }
 
