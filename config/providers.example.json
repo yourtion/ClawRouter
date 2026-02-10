@@ -1,0 +1,35 @@
+{
+  "version": "2.0",
+  "providers": [
+    {
+      "id": "blockrun",
+      "type": "blockrun",
+      "enabled": true,
+      "priority": 100,
+      "auth": {
+        "type": "x402_payment",
+        "credentials": {
+          "walletKey": "${BLOCKRUN_WALLET_KEY}"
+        }
+      },
+      "models": {
+        "autoSync": false
+      }
+    },
+    {
+      "id": "openrouter",
+      "type": "openrouter",
+      "enabled": true,
+      "priority": 90,
+      "auth": {
+        "type": "api_key",
+        "credentials": {
+          "apiKey": "${OPENROUTER_API_KEY}"
+        }
+      },
+      "models": {
+        "autoSync": true
+      }
+    }
+  ]
+}
