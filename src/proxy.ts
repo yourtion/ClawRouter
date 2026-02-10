@@ -24,7 +24,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { finished } from "node:stream";
 import type { AddressInfo } from "node:net";
-import { privateKeyToAccount } from "viem/accounts";
+// viem removed - no longer needed with API key authentication
 import { createPaymentFetch, type PreAuthParams } from "./x402.js";
 import {
   route,
@@ -513,16 +513,7 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
   const existingWallet = await checkExistingProxy(listenPort);
   if (existingWallet) {
     // Proxy already running — reuse it instead of failing with EADDRINUSE
-    const account = privateKeyToAccount(options.walletKey as `0x${string}`);
-    const balanceMonitor = new BalanceMonitor(account.address);
     const baseUrl = `http://127.0.0.1:${listenPort}`;
-
-    // Verify the existing proxy is using the same wallet (or warn if different)
-    if (existingWallet !== account.address) {
-      console.warn(
-        `[ClawRouter] Existing proxy on port ${listenPort} uses wallet ${existingWallet}, but current config uses ${account.address}. Reusing existing proxy.`,
-      );
-    }
 
     options.onReady?.(listenPort);
 
@@ -530,18 +521,18 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
       port: listenPort,
       baseUrl,
       walletAddress: existingWallet,
-      balanceMonitor,
+      balanceMonitor: new BalanceMonitor(existingWallet),
       close: async () => {
         // No-op: we didn't start this proxy, so we shouldn't close it
       },
     };
   }
 
-  // Create x402 payment-enabled fetch from wallet private key
-  const account = privateKeyToAccount(options.walletKey as `0x${string}`);
+  // Create payment fetch (using dummy key - not used with API key auth)
+  const account = { address: "0x0000000000000000000000000000000000000000" };
   const { fetch: payFetch } = createPaymentFetch(options.walletKey as `0x${string}`);
 
-  // Create balance monitor for pre-request checks
+  // Create balance monitor (using dummy address - not used with API key auth)
   const balanceMonitor = new BalanceMonitor(account.address);
 
   // Build router options (100% local — no external API calls for routing)
@@ -971,7 +962,9 @@ async function tryModelRequest(
 
   // Estimate cost for pre-auth
   const estimated = estimateAmount(modelId, requestBody.length, maxTokens);
-  const preAuth: PreAuthParams | undefined = estimated ? { estimatedAmount: estimated } : undefined;
+  const preAuth: PreAuthParams | undefined = estimated
+    ? { estimatedAmount: BigInt(estimated), payToAddress: "0x0" }
+    : undefined;
 
   try {
     const response = await payFetch(
