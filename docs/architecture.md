@@ -1,6 +1,6 @@
 # Architecture
 
-Technical deep-dive into ClawRouter's internals.
+Technical deep-dive into OpenClaw Router's internals.
 
 ## Table of Contents
 
@@ -23,7 +23,7 @@ Technical deep-dive into ClawRouter's internals.
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                 ClawRouter Proxy (localhost)                │
+│                 OpenClaw Router Proxy (localhost)                │
 │  ┌─────────────┐  ┌─────────────┐  ┌───────────────────┐   │
 │  │   Dedup     │→ │   Router    │→ │   x402 Payment    │   │
 │  │   Cache     │  │  (14-dim)   │  │   (EIP-712 USDC)  │   │
@@ -280,12 +280,12 @@ if (systemPrompt?.includes("json") || systemPrompt?.includes("yaml")) {
 
 ### x402 Protocol
 
-ClawRouter uses the [x402 protocol](https://x402.org) for micropayments:
+OpenClaw Router uses the [x402 protocol](https://x402.org) for micropayments:
 
 ```
 ┌────────────┐     ┌────────────┐     ┌────────────┐
 │   Client   │────▶│  BlockRun  │────▶│  Provider  │
-│ (ClawRouter)     │    API     │     │ (OpenAI)   │
+│ (OpenClaw Router)     │    API     │     │ (OpenAI)   │
 └────────────┘     └────────────┘     └────────────┘
       │                  │
       │ 1. Request       │

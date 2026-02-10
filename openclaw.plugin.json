@@ -1,6 +1,6 @@
 {
   "id": "clawrouter",
-  "name": "ClawRouter",
+  "name": "OpenClaw Router",
   "description": "Smart LLM router — 30+ models, x402 micropayments, 78% cost savings",
   "configSchema": {
     "type": "object",

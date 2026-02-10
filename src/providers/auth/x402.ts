@@ -41,7 +41,7 @@ export class X402AuthStrategy implements IAuthStrategy {
     // via the paymentFetch wrapper
 
     return {
-      "user-agent": "@blockrun/clawrouter/v2.0",
+      "user-agent": "openclaw-router/v2.0",
     };
   }
 

@@ -3,10 +3,10 @@
  */
 
 import { describe, it, expect, beforeEach } from "bun:test";
-import { ProviderRegistry } from "../src/providers/registry.js";
-import { BlockRunProvider } from "../src/providers/implementations/blockrun.js";
-import { OpenRouterProvider } from "../src/providers/implementations/openrouter.js";
-import type { IProvider } from "../src/providers/types.js";
+import { ProviderRegistry } from "../../src/providers/registry.js";
+import { BlockRunProvider } from "../../src/providers/implementations/blockrun.js";
+import { OpenRouterProvider } from "../../src/providers/implementations/openrouter.js";
+import type { IProvider } from "../../src/providers/types.js";
 
 // Mock provider for testing
 class MockProvider implements IProvider {

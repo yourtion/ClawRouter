@@ -2,7 +2,7 @@
 
 ## Overview
 
-ClawRouter now supports multiple LLM providers (BlockRun, OpenRouter, NVIDIA, etc.) with different authentication methods (x402 micropayments, API keys, etc.).
+OpenClaw Router now supports multiple LLM providers (BlockRun, OpenRouter, NVIDIA, etc.) with different authentication methods (x402 micropayments, API keys, etc.).
 
 ## Architecture
 
@@ -219,7 +219,7 @@ export OPENROUTER_API_KEY="sk-or-..."
 }
 ```
 
-3. Restart ClawRouter:
+3. Restart OpenClaw Router:
 ```bash
 openclaw gateway restart
 ```

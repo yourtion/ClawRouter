@@ -1,7 +1,7 @@
 {
-  "name": "@blockrun/clawrouter",
+  "name": "openclaw-router",
   "version": "0.6.7",
-  "description": "Smart LLM router — save 78% on inference costs. 30+ models, one wallet, x402 micropayments.",
+  "description": "Smart multi-provider LLM router for OpenClaw. Save 78% on inference costs with 30+ models, x402 micropayments, and support for multiple providers (BlockRun, OpenRouter, NVIDIA, etc.).",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

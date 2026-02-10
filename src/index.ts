@@ -1,20 +1,20 @@
 /**
- * @blockrun/clawrouter
+ * openclaw-router
  *
- * Smart LLM router for OpenClaw — 30+ models, x402 micropayments, 78% cost savings.
+ * Smart multi-provider LLM router for OpenClaw — 30+ models, x402 micropayments, API key auth, 78% cost savings.
  * Routes each request to the cheapest model that can handle it.
  *
  * Usage:
  *   # Install the plugin
- *   openclaw plugins install @blockrun/clawrouter
+ *   openclaw plugins install openclaw-router
  *
- *   # Fund your wallet with USDC on Base (address printed on install)
+ *   # Fund your wallet with USDC on Base (for x402 payments)
  *
  *   # Use smart routing (auto-picks cheapest model)
- *   openclaw models set blockrun/auto
+ *   openclaw models set auto
  *
- *   # Or use any specific BlockRun model
- *   openclaw models set openai/gpt-5.2
+ *   # Or use any specific model
+ *   openclaw models set openai/gpt-4o
  */
 
 import type {
@@ -397,7 +397,7 @@ async function createWalletCommand(): Promise<OpenClawPluginCommandDefinition> {
 
       if (!walletKey || !address) {
         return {
-          text: `No ClawRouter wallet found.\n\nRun \`openclaw plugins install @blockrun/clawrouter\` to generate a wallet.`,
+          text: `No OpenClaw Router wallet found.\n\nRun \`openclaw plugins install openclaw-router\` to generate a wallet.`,
           isError: true,
         };
       }

@@ -1,6 +1,6 @@
 # Configuration Reference
 
-Complete reference for ClawRouter configuration options.
+Complete reference for OpenClaw Router configuration options.
 
 ## Table of Contents
 
@@ -50,7 +50,7 @@ openclaw gateway restart
 
 **Behavior:**
 
-- If a proxy is already running on the configured port, ClawRouter will **reuse it** instead of failing with `EADDRINUSE`
+- If a proxy is already running on the configured port, OpenClaw Router will **reuse it** instead of failing with `EADDRINUSE`
 - The proxy returns the wallet address of the existing instance, not the configured wallet
 - A warning is logged if the existing proxy uses a different wallet
 
@@ -113,7 +113,7 @@ Your wallet private key is stored at `~/.openclaw/blockrun/wallet.key`. **Back u
 
 #### Using the `/wallet` Command
 
-ClawRouter provides a built-in command for wallet management:
+OpenClaw Router provides a built-in command for wallet management:
 
 ```bash
 # Check wallet status (address, balance, file location)
@@ -138,15 +138,15 @@ cat ~/.openclaw/blockrun/wallet.key
 #### Restore on a New Machine
 
 ```bash
-# Option 1: Set environment variable (before installing ClawRouter)
+# Option 1: Set environment variable (before installing OpenClaw Router)
 export BLOCKRUN_WALLET_KEY=0x...your_key_here...
-openclaw plugins install @blockrun/clawrouter
+openclaw plugins install openclaw-router
 
 # Option 2: Create the key file directly
 mkdir -p ~/.openclaw/blockrun
 echo "0x...your_key_here..." > ~/.openclaw/blockrun/wallet.key
 chmod 600 ~/.openclaw/blockrun/wallet.key
-openclaw plugins install @blockrun/clawrouter
+openclaw plugins install openclaw-router
 ```
 
 **Important:** If a saved wallet file exists, it takes priority over the environment variable. To use a different wallet, delete the existing file first.
@@ -167,7 +167,7 @@ If you lose your wallet key, **there is no way to recover it**. The wallet is se
 
 ### Proxy Reuse (v0.4.1+)
 
-ClawRouter automatically detects and reuses an existing proxy on startup:
+OpenClaw Router automatically detects and reuses an existing proxy on startup:
 
 ```
 Session 1: startProxy() → starts server on :8402
@@ -183,10 +183,10 @@ Session 2: startProxy() → detects existing, reuses handle
 
 ### Programmatic Usage
 
-Use ClawRouter without OpenClaw:
+Use OpenClaw Router without OpenClaw:
 
 ```typescript
-import { startProxy } from "@blockrun/clawrouter";
+import { startProxy } from "openclaw-router";
 
 const proxy = await startProxy({
   walletKey: process.env.BLOCKRUN_WALLET_KEY!,
@@ -210,7 +210,7 @@ await proxy.close();
 Or use the router directly (no proxy, no payments):
 
 ```typescript
-import { route, DEFAULT_ROUTING_CONFIG, BLOCKRUN_MODELS } from "@blockrun/clawrouter";
+import { route, DEFAULT_ROUTING_CONFIG, BLOCKRUN_MODELS } from "openclaw-router";
 
 // Build pricing map
 const modelPricing = new Map();
@@ -239,7 +239,7 @@ console.log(decision);
 All options for `startProxy()`:
 
 ```typescript
-import { startProxy } from "@blockrun/clawrouter";
+import { startProxy } from "openclaw-router";
 
 const proxy = await startProxy({
   walletKey: "0x...",
@@ -276,7 +276,7 @@ const proxy = await startProxy({
 
 ```yaml
 plugins:
-  - id: "@blockrun/clawrouter"
+  - id: "openclaw-router"
     config:
       routing:
         # Override tier assignments
@@ -326,7 +326,7 @@ plugins:
 
 ### Fallback Chain
 
-When the primary model fails (rate limits, billing errors, provider outages), ClawRouter tries the next model in the fallback chain:
+When the primary model fails (rate limits, billing errors, provider outages), OpenClaw Router tries the next model in the fallback chain:
 
 ```
 Request → gemini-2.5-flash (rate limited)
@@ -427,7 +427,7 @@ routing:
 For testing routing without spending USDC:
 
 ```typescript
-import { route, DEFAULT_ROUTING_CONFIG, BLOCKRUN_MODELS } from "@blockrun/clawrouter";
+import { route, DEFAULT_ROUTING_CONFIG, BLOCKRUN_MODELS } from "openclaw-router";
 
 // Build pricing map
 const modelPricing = new Map();

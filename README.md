@@ -5,7 +5,7 @@
 Route every request to the cheapest model that can handle it.
 One wallet, 30+ models, zero API keys.
 
-[![npm](https://img.shields.io/npm/v/@blockrun/clawrouter.svg)](https://npmjs.com/package/@blockrun/clawrouter)
+[![npm](https://img.shields.io/npm/v/openclaw-router.svg)](https://npmjs.com/package/openclaw-router)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://typescriptlang.org)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-brightgreen.svg)](https://nodejs.org)
@@ -265,7 +265,7 @@ For basic usage, no configuration needed. For advanced options:
 Use ClawRouter directly in your code:
 
 ```typescript
-import { startProxy, route } from "@blockrun/clawrouter";
+import { startProxy, route } from "openclaw-router";
 
 // Start proxy server
 const proxy = await startProxy({ walletKey: "0x..." });

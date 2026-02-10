@@ -1,6 +1,6 @@
 # Advanced Features
 
-ClawRouter v0.5+ includes intelligent routing features that work automatically.
+OpenClaw Router v0.5+ includes intelligent routing features that work automatically.
 
 ## Table of Contents
 
@@ -16,7 +16,7 @@ ClawRouter v0.5+ includes intelligent routing features that work automatically.
 
 ## Agentic Auto-Detection
 
-ClawRouter automatically detects multi-step agentic tasks and routes to models optimized for autonomous execution:
+OpenClaw Router automatically detects multi-step agentic tasks and routes to models optimized for autonomous execution:
 
 ```
 "what is 2+2"                    → gemini-flash (standard)
@@ -46,7 +46,7 @@ You can also force agentic mode via config:
 ```yaml
 # openclaw.yaml
 plugins:
-  - id: "@blockrun/clawrouter"
+  - id: "openclaw-router"
     config:
       routing:
         overrides:
@@ -57,7 +57,7 @@ plugins:
 
 ## Tool Detection
 
-When your request includes a `tools` array (function calling), ClawRouter automatically switches to agentic tiers:
+When your request includes a `tools` array (function calling), OpenClaw Router automatically switches to agentic tiers:
 
 ```typescript
 // Request with tools → auto-agentic mode
@@ -76,7 +76,7 @@ When your request includes a `tools` array (function calling), ClawRouter automa
 
 ## Context-Length-Aware Routing
 
-ClawRouter automatically filters out models that can't handle your context size:
+OpenClaw Router automatically filters out models that can't handle your context size:
 
 ```
 150K token request:
@@ -115,7 +115,7 @@ All aliases work with `/model blockrun/xxx` or just `/model xxx`.
 
 ## Free Tier Fallback
 
-When your wallet balance hits $0, ClawRouter automatically falls back to the free model (`gpt-oss-120b`):
+When your wallet balance hits $0, OpenClaw Router automatically falls back to the free model (`gpt-oss-120b`):
 
 ```
 Wallet: $0.00
@@ -131,7 +131,7 @@ You'll never get blocked by an empty wallet — the free tier keeps you running.
 
 ## Session Persistence
 
-For multi-turn conversations, ClawRouter pins the model to prevent mid-task switching:
+For multi-turn conversations, OpenClaw Router pins the model to prevent mid-task switching:
 
 ```
 Turn 1: "Build a React component" → claude-sonnet-4
@@ -156,7 +156,7 @@ Output:
 
 ```
 +============================================================+
-|              ClawRouter Usage Statistics                   |
+|              OpenClaw Router Usage Statistics                   |
 +============================================================+
 |  Period: last 7 days                                      |
 |  Total Requests: 442                                      |
