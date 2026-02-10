@@ -1,6 +1,6 @@
 {
   "name": "openclaw-router",
-  "version": "0.6.7",
+  "version": "0.7.0",
   "description": "Smart multi-provider LLM router for OpenClaw. Save 78% on inference costs with 30+ models, x402 micropayments, and support for multiple providers (BlockRun, OpenRouter, NVIDIA, etc.).",
   "type": "module",
   "main": "dist/index.js",
