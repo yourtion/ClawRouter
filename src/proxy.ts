@@ -1,31 +1,24 @@
 /**
- * Local x402 Proxy Server
+ * Local API Proxy Server
  *
  * Sits between OpenClaw's pi-ai (which makes standard OpenAI-format requests)
- * and BlockRun's API (which requires x402 micropayments).
+ * and various LLM provider APIs (BlockRun, OpenRouter, NVIDIA, etc.).
  *
  * Flow:
  *   pi-ai → http://localhost:{port}/v1/chat/completions
- *        → proxy forwards to https://blockrun.ai/api/v1/chat/completions
- *        → gets 402 → @x402/fetch signs payment → retries
+ *        → proxy forwards to provider API
  *        → streams response back to pi-ai
  *
- * Optimizations (v0.3.0):
+ * Optimizations:
  *   - SSE heartbeat: for streaming requests, sends headers + heartbeat immediately
- *     before the x402 flow, preventing OpenClaw's 10-15s timeout from firing.
- *   - Response dedup: hashes request bodies and caches responses for 30s,
- *     preventing double-charging when OpenClaw retries after timeout.
- *   - Payment cache: after first 402, pre-signs subsequent requests to skip
- *     the 402 round trip (~200ms savings per request).
- *   - Smart routing: when model is "blockrun/auto", classify query and pick cheapest model.
+ *   - Response dedup: hashes request bodies and caches responses for 30s
+ *   - Smart routing: when model is "blockrun/auto", classify query and pick cheapest model
  *   - Usage logging: log every request as JSON line to ~/.openclaw/blockrun/logs/
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { finished } from "node:stream";
 import type { AddressInfo } from "node:net";
-// viem removed - no longer needed with API key authentication
-import { createPaymentFetch, type PreAuthParams } from "./x402.js";
 import {
   route,
   getFallbackChain,
@@ -40,10 +33,6 @@ import { BLOCKRUN_MODELS, resolveModelAlias, getModelContextWindow } from "./mod
 import { logUsage, type UsageEntry } from "./logger.js";
 import { getStats } from "./stats.js";
 import { RequestDeduplicator } from "./dedup.js";
-import { BalanceMonitor } from "./balance.js";
-// Error classes available for programmatic use but not used in proxy
-// (universal free fallback means we don't throw balance errors anymore)
-// import { InsufficientFundsError, EmptyWalletError } from "./errors.js";
 import { USER_AGENT } from "./version.js";
 import { SessionStore, getSessionId, type SessionConfig } from "./session.js";
 // Multi-provider support
@@ -138,9 +127,9 @@ function safeWrite(res: ServerResponse, data: string | Buffer): boolean {
   return res.write(data);
 }
 
-// Extra buffer for balance check (on top of estimateAmount's 20% buffer)
+// Extra buffer for cost estimation (on top of estimateAmount's 20% buffer)
 // Total effective buffer: 1.2 * 1.5 = 1.8x (80% safety margin)
-// This prevents x402 payment failures after streaming headers are sent,
+// This prevents request failures after streaming headers are sent,
 // which would trigger OpenClaw's 5-24 hour billing cooldown.
 const BALANCE_CHECK_BUFFER = 1.5;
 
@@ -160,9 +149,9 @@ export function getProxyPort(): number {
 
 /**
  * Check if a proxy is already running on the given port.
- * Returns the wallet address if running, undefined otherwise.
+ * Returns true if running, false otherwise.
  */
-async function checkExistingProxy(port: number): Promise<string | undefined> {
+async function checkExistingProxy(port: number): Promise<boolean> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT_MS);
 
@@ -173,15 +162,13 @@ async function checkExistingProxy(port: number): Promise<string | undefined> {
     clearTimeout(timeoutId);
 
     if (response.ok) {
-      const data = (await response.json()) as { status?: string; wallet?: string };
-      if (data.status === "ok" && data.wallet) {
-        return data.wallet;
-      }
+      const data = (await response.json()) as { status?: string };
+      return data.status === "ok";
     }
-    return undefined;
+    return false;
   } catch {
     clearTimeout(timeoutId);
-    return undefined;
+    return false;
   }
 }
 
@@ -191,7 +178,7 @@ async function checkExistingProxy(port: number): Promise<string | undefined> {
  */
 const PROVIDER_ERROR_PATTERNS = [
   /billing/i,
-  /insufficient.*balance/i,
+  /insufficient.*credits/i,
   /credits/i,
   /quota.*exceeded/i,
   /rate.*limit/i,
@@ -211,7 +198,7 @@ const PROVIDER_ERROR_PATTERNS = [
 const FALLBACK_STATUS_CODES = [
   400, // Bad request - sometimes used for billing errors
   401, // Unauthorized - provider API key issues
-  402, // Payment required - but from upstream, not x402
+  402, // Payment required - from upstream provider
   403, // Forbidden - provider restrictions
   429, // Rate limited
   500, // Internal server error
@@ -396,29 +383,13 @@ function stripThinkingTokens(content: string): string {
   return cleaned;
 }
 
-/** Callback info for low balance warning */
-export type LowBalanceInfo = {
-  balanceUSD: string;
-  walletAddress: string;
-};
-
-/** Callback info for insufficient funds error */
-export type InsufficientFundsInfo = {
-  balanceUSD: string;
-  requiredUSD: string;
-  walletAddress: string;
-};
-
 export type ProxyOptions = {
-  walletKey: string;
   apiBase?: string;
   /** Port to listen on (default: 8402) */
   port?: number;
   routingConfig?: Partial<RoutingConfig>;
-  /** Request timeout in ms (default: 180000 = 3 minutes). Covers on-chain tx + LLM response. */
+  /** Request timeout in ms (default: 180000 = 3 minutes) */
   requestTimeoutMs?: number;
-  /** Skip balance checks (for testing only). Default: false */
-  skipBalanceCheck?: boolean;
   /**
    * Session persistence config. When enabled, maintains model selection
    * across requests within a session to prevent mid-task model switching.
@@ -426,19 +397,12 @@ export type ProxyOptions = {
   sessionConfig?: Partial<SessionConfig>;
   onReady?: (port: number) => void;
   onError?: (error: Error) => void;
-  onPayment?: (info: { model: string; amount: string; network: string }) => void;
   onRouted?: (decision: RoutingDecision) => void;
-  /** Called when balance drops below $1.00 (warning, request still proceeds) */
-  onLowBalance?: (info: LowBalanceInfo) => void;
-  /** Called when balance is insufficient for a request (request fails) */
-  onInsufficientFunds?: (info: InsufficientFundsInfo) => void;
 };
 
 export type ProxyHandle = {
   port: number;
   baseUrl: string;
-  walletAddress: string;
-  balanceMonitor: BalanceMonitor;
   close: () => Promise<void>;
 };
 
@@ -496,7 +460,7 @@ function estimateAmount(
 }
 
 /**
- * Start the local x402 proxy server.
+ * Start the local API proxy server.
  *
  * If a proxy is already running on the target port, reuses it instead of failing.
  * Port can be configured via BLOCKRUN_PROXY_PORT environment variable.
@@ -510,8 +474,8 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
   const listenPort = options.port ?? getProxyPort();
 
   // Check if a proxy is already running on this port
-  const existingWallet = await checkExistingProxy(listenPort);
-  if (existingWallet) {
+  const existingProxy = await checkExistingProxy(listenPort);
+  if (existingProxy) {
     // Proxy already running — reuse it instead of failing with EADDRINUSE
     const baseUrl = `http://127.0.0.1:${listenPort}`;
 
@@ -520,20 +484,11 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
     return {
       port: listenPort,
       baseUrl,
-      walletAddress: existingWallet,
-      balanceMonitor: new BalanceMonitor(existingWallet),
       close: async () => {
         // No-op: we didn't start this proxy, so we shouldn't close it
       },
     };
   }
-
-  // Create payment fetch (using dummy key - not used with API key auth)
-  const account = { address: "0x0000000000000000000000000000000000000000" };
-  const { fetch: payFetch } = createPaymentFetch(options.walletKey as `0x${string}`);
-
-  // Create balance monitor (using dummy address - not used with API key auth)
-  const balanceMonitor = new BalanceMonitor(account.address);
 
   // Build router options (100% local — no external API calls for routing)
   const routingConfig = mergeRoutingConfig(options.routingConfig);
@@ -580,26 +535,11 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
       }
     });
 
-    // Health check with optional balance info
+    // Health check endpoint
     if (req.url === "/health" || req.url?.startsWith("/health?")) {
-      const url = new URL(req.url, "http://localhost");
-      const full = url.searchParams.get("full") === "true";
-
       const response: Record<string, unknown> = {
         status: "ok",
-        wallet: account.address,
       };
-
-      if (full) {
-        try {
-          const balanceInfo = await balanceMonitor.checkBalance();
-          response.balance = balanceInfo.balanceUSD;
-          response.isLow = balanceInfo.isLow;
-          response.isEmpty = balanceInfo.isEmpty;
-        } catch {
-          response.balanceError = "Could not fetch balance";
-        }
-      }
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify(response));
@@ -654,11 +594,9 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
         req,
         res,
         apiBase,
-        payFetch,
         options,
         routerOpts,
         deduplicator,
-        balanceMonitor,
         sessionStore,
       );
     } catch (err) {
@@ -696,8 +634,6 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
         resolve({
           port: listenPort,
           baseUrl,
-          walletAddress: account.address,
-          balanceMonitor,
           close: async () => {
             // No-op: we didn't start this proxy, so we shouldn't close it
           },
@@ -759,8 +695,6 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
       resolve({
         port,
         baseUrl,
-        walletAddress: account.address,
-        balanceMonitor,
         close: () =>
           new Promise<void>((res, rej) => {
             const timeout = setTimeout(() => {
@@ -926,12 +860,6 @@ async function tryModelRequest(
   body: Buffer,
   modelId: string,
   maxTokens: number,
-  payFetch: (
-    input: RequestInfo | URL,
-    init?: RequestInit,
-    preAuth?: PreAuthParams,
-  ) => Promise<Response>,
-  balanceMonitor: BalanceMonitor,
   signal: AbortSignal,
 ): Promise<ModelRequestResult> {
   // Update model in body and normalize messages
@@ -960,14 +888,8 @@ async function tryModelRequest(
     // If body isn't valid JSON, use as-is
   }
 
-  // Estimate cost for pre-auth
-  const estimated = estimateAmount(modelId, requestBody.length, maxTokens);
-  const preAuth: PreAuthParams | undefined = estimated
-    ? { estimatedAmount: BigInt(estimated), payToAddress: "0x0" }
-    : undefined;
-
   try {
-    const response = await payFetch(
+    const response = await fetch(
       upstreamUrl,
       {
         method,
@@ -975,7 +897,6 @@ async function tryModelRequest(
         body: requestBody.length > 0 ? new Uint8Array(requestBody) : undefined,
         signal,
       },
-      preAuth,
     );
 
     // Check for provider errors
@@ -1005,28 +926,21 @@ async function tryModelRequest(
 }
 
 /**
- * Proxy a single request through x402 payment flow to BlockRun API.
+ * Proxy a single request to provider API.
  *
  * Optimizations applied in order:
  *   1. Dedup check — if same request body seen within 30s, replay cached response
  *   2. Streaming heartbeat — for stream:true, send 200 + heartbeats immediately
- *   3. Payment pre-auth — estimate USDC amount and pre-sign to skip 402 round trip
- *   4. Smart routing — when model is "blockrun/auto", pick cheapest capable model
- *   5. Fallback chain — on provider errors, try next model in tier's fallback list
+ *   3. Smart routing — when model is "blockrun/auto", pick cheapest capable model
+ *   4. Fallback chain — on provider errors, try next model in tier's fallback list
  */
 async function proxyRequest(
   req: IncomingMessage,
   res: ServerResponse,
   apiBase: string,
-  payFetch: (
-    input: RequestInfo | URL,
-    init?: RequestInit,
-    preAuth?: PreAuthParams,
-  ) => Promise<Response>,
   options: ProxyOptions,
   routerOpts: RouterOptions,
   deduplicator: RequestDeduplicator,
-  balanceMonitor: BalanceMonitor,
   sessionStore: SessionStore,
 ): Promise<void> {
   const startTime = Date.now();
@@ -1193,59 +1107,12 @@ async function proxyRequest(
   // Register this request as in-flight
   deduplicator.markInflight(dedupKey);
 
-  // --- Pre-request balance check ---
-  // Estimate cost and check if wallet has sufficient balance
-  // Skip if skipBalanceCheck is set (for testing) or if using free model
-  let estimatedCostMicros: bigint | undefined;
-  const isFreeModel = modelId === FREE_MODEL;
-
-  if (modelId && !options.skipBalanceCheck && !isFreeModel) {
-    const estimated = estimateAmount(modelId, body.length, maxTokens);
-    if (estimated) {
-      estimatedCostMicros = BigInt(estimated);
-
-      // Apply extra buffer for balance check to prevent x402 failures after streaming starts.
-      // This is aggressive to avoid triggering OpenClaw's 5-24 hour billing cooldown.
-      const bufferedCostMicros =
-        (estimatedCostMicros * BigInt(Math.ceil(BALANCE_CHECK_BUFFER * 100))) / 100n;
-
-      // Check balance before proceeding (using buffered amount)
-      const sufficiency = await balanceMonitor.checkSufficient(bufferedCostMicros);
-
-      if (sufficiency.info.isEmpty || !sufficiency.sufficient) {
-        // Wallet is empty or insufficient — ALWAYS fallback to free model
-        // This ensures new users with empty wallets can still use ClawRouter
-        const originalModel = modelId;
-        console.log(
-          `[ClawRouter] Wallet ${sufficiency.info.isEmpty ? "empty" : "insufficient"} ($${sufficiency.info.balanceUSD}), falling back to free model: ${FREE_MODEL} (requested: ${originalModel})`,
-        );
-        modelId = FREE_MODEL;
-        // Update the body with new model
-        const parsed = JSON.parse(body.toString()) as Record<string, unknown>;
-        parsed.model = FREE_MODEL;
-        body = Buffer.from(JSON.stringify(parsed));
-
-        // Notify about the fallback
-        options.onLowBalance?.({
-          balanceUSD: sufficiency.info.balanceUSD,
-          walletAddress: sufficiency.info.walletAddress,
-        });
-      } else if (sufficiency.info.isLow) {
-        // Balance is low but sufficient — warn and proceed
-        options.onLowBalance?.({
-          balanceUSD: sufficiency.info.balanceUSD,
-          walletAddress: sufficiency.info.walletAddress,
-        });
-      }
-    }
-  }
-
   // --- Streaming: early header flush + heartbeat ---
   let heartbeatInterval: ReturnType<typeof setInterval> | undefined;
   let headersSentEarly = false;
 
   if (isStreaming) {
-    // Send 200 + SSE headers immediately, before x402 flow
+    // Send 200 + SSE headers immediately, before API request
     res.writeHead(200, {
       "content-type": "text/event-stream",
       "cache-control": "no-cache",
@@ -1418,8 +1285,6 @@ async function proxyRequest(
             body,
             tryModel,
             maxTokens,
-            payFetch,
-            balanceMonitor,
             controller.signal,
           );
         }
@@ -1432,8 +1297,6 @@ async function proxyRequest(
           body,
           tryModel,
           maxTokens,
-          payFetch,
-          balanceMonitor,
           controller.signal,
         );
       }
@@ -1722,11 +1585,6 @@ async function proxyRequest(
       });
     }
 
-    // --- Optimistic balance deduction after successful response ---
-    if (estimatedCostMicros !== undefined) {
-      balanceMonitor.deductEstimated(estimatedCostMicros);
-    }
-
     // Mark request as completed (for client disconnect cleanup)
     completed = true;
   } catch (err) {
@@ -1741,9 +1599,6 @@ async function proxyRequest(
 
     // Remove in-flight entry so retries aren't blocked
     deduplicator.removeInflight(dedupKey);
-
-    // Invalidate balance cache on payment failure (might be out of date)
-    balanceMonitor.invalidate();
 
     // Convert abort error to more descriptive timeout error
     if (err instanceof Error && err.name === "AbortError") {

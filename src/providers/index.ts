@@ -13,7 +13,6 @@ export type {
   StandardModel,
   RequestContext,
   ProviderResponse,
-  ProviderBalanceInfo,
   AuthConfig,
 } from "./types.js";
 export { AuthType } from "./types.js";

@@ -3,7 +3,7 @@
 <div align="center">
 
 Route every request to the cheapest model that can handle it.
-One wallet, 30+ models, zero API keys.
+30+ models, API key authentication, smart routing.
 
 [![npm](https://img.shields.io/npm/v/openclaw-router.svg)](https://npmjs.com/package/openclaw-router)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -28,8 +28,8 @@ One wallet, 30+ models, zero API keys.
 
 - **100% local routing** — 15-dimension weighted scoring runs on your machine in <1ms
 - **Zero external calls** — no API calls for routing decisions, ever
-- **30+ models** — OpenAI, Anthropic, Google, DeepSeek, xAI, Moonshot through one wallet
-- **x402 micropayments** — pay per request with USDC on Base, no API keys
+- **30+ models** — OpenAI, Anthropic, Google, DeepSeek, xAI, Moonshot through API key auth
+- **API key authentication** — simple, secure, standard API key authentication
 - **Open source** — MIT licensed, fully inspectable routing logic
 
 ### Ask Your OpenClaw How ClawRouter Saves You Money
@@ -44,8 +44,8 @@ One wallet, 30+ models, zero API keys.
 # 1. Install with smart routing enabled by default
 curl -fsSL https://raw.githubusercontent.com/BlockRunAI/ClawRouter/main/scripts/reinstall.sh | bash
 
-# 2. Fund your wallet with USDC on Base (address printed on install)
-# $5 is enough for thousands of requests
+# 2. Configure API keys in ~/.openclaw/blockrun/providers.json
+# Example: {"providers": [{"id": "blockrun", "enabled": true, "priority": 100, "auth": {"type": "api_key", "credentials": {"apiKey": "your-api-key"}}}]}
 
 # 3. Restart OpenClaw gateway
 openclaw gateway restart
@@ -59,7 +59,7 @@ Done! Smart routing (`blockrun/auto`) is now your default model.
 - **Free tier?** Use `/model free` — routes to gpt-oss-120b at $0
 - **Model aliases:** `/model sonnet`, `/model grok`, `/model deepseek`, `/model kimi`
 - **Want a specific model?** Use `blockrun/openai/gpt-4o` or `blockrun/anthropic/claude-sonnet-4`
-- **Already have a funded wallet?** `export BLOCKRUN_WALLET_KEY=0x...`
+- **Configure providers:** Edit `~/.openclaw/blockrun/providers.json` to add API keys
 
 ---
 
@@ -71,12 +71,11 @@ Done! Smart routing (`blockrun/auto`) is now your default model.
 
 **The flow:**
 
-1. **Wallet auto-generated** on Base (L2) — saved securely at `~/.openclaw/blockrun/wallet.key`
-2. **Fund with $1 USDC** — enough for hundreds of requests
-3. **Request any model** — "help me call Grok to check @hosseeb's opinion on AI agents"
-4. **ClawRouter routes it** — spawns a Grok sub-agent via `xai/grok-3`, pays per-request
+1. **Configure API keys** in `~/.openclaw/blockrun/providers.json`
+2. **Request any model** — "help me call Grok to check @hosseeb's opinion on AI agents"
+3. **ClawRouter routes it** — spawns a Grok sub-agent via `xai/grok-3`, uses API key auth
 
-No API keys. No accounts. Just fund and go.
+Simple API key authentication. No blockchain. No wallets.
 
 ---
 
@@ -183,37 +182,43 @@ Best for: parallel web research, multi-agent orchestration, long-running automat
 
 ---
 
-## Payment
+## Provider Configuration
 
-No account. No API key. **Payment IS authentication** via [x402](https://x402.org).
+Configure providers in `~/.openclaw/blockrun/providers.json`:
 
+```json
+{
+  "version": "2.0",
+  "providers": [
+    {
+      "id": "blockrun",
+      "type": "blockrun",
+      "enabled": true,
+      "priority": 100,
+      "auth": {
+        "type": "api_key",
+        "credentials": {
+          "apiKey": "${BLOCKRUN_API_KEY}"
+        }
+      }
+    },
+    {
+      "id": "openrouter",
+      "type": "openrouter",
+      "enabled": true,
+      "priority": 90,
+      "auth": {
+        "type": "api_key",
+        "credentials": {
+          "apiKey": "${OPENROUTER_API_KEY}"
+        }
+      }
+    }
+  ]
+}
 ```
-Request → 402 (price: $0.003) → wallet signs USDC → retry → response
-```
 
-USDC stays in your wallet until spent — non-custodial. Price is visible in the 402 header before signing.
-
-**Fund your wallet:**
-
-- Coinbase: Buy USDC, send to Base
-- Bridge: Move USDC from any chain to Base
-- CEX: Withdraw USDC to Base network
-
----
-
-## Wallet Configuration
-
-ClawRouter auto-generates and saves a wallet at `~/.openclaw/blockrun/wallet.key`.
-
-```bash
-# Check wallet status
-/wallet
-
-# Use your own wallet
-export BLOCKRUN_WALLET_KEY=0x...
-```
-
-**Full reference:** [Wallet configuration](docs/configuration.md#wallet-configuration) | [Backup & recovery](docs/configuration.md#wallet-backup--recovery)
+**Full reference:** [Provider configuration](docs/configuration.md#provider-configuration)
 
 ---
 
@@ -228,33 +233,32 @@ export BLOCKRUN_WALLET_KEY=0x...
 ┌─────────────────────────────────────────────────────────────┐
 │                   ClawRouter (localhost)                     │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
-│  │ Weighted Scorer │→ │ Model Selector  │→ │ x402 Signer │ │
-│  │  (15 dimensions)│  │ (cheapest tier) │  │   (USDC)    │ │
+│  │ Weighted Scorer │→ │ Model Selector  │→ │ API Key Auth│ │
+│  │  (15 dimensions)│  │ (cheapest tier) │  │             │ │
 │  └─────────────────┘  └─────────────────┘  └─────────────┘ │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                      BlockRun API                            │
+│                      Provider APIs                           │
 │    → OpenAI | Anthropic | Google | DeepSeek | xAI | Moonshot│
 └─────────────────────────────────────────────────────────────┘
 ```
 
 Routing is **client-side** — open source and inspectable.
 
-**Deep dive:** [docs/architecture.md](docs/architecture.md) — request flow, payment system, optimizations
+**Deep dive:** [docs/architecture.md](docs/architecture.md) — request flow, authentication, optimizations
 
 ---
 
 ## Configuration
 
-For basic usage, no configuration needed. For advanced options:
+For basic usage, minimal configuration needed. For advanced options:
 
 | Setting               | Default | Description           |
 | --------------------- | ------- | --------------------- |
 | `CLAWROUTER_DISABLED` | `false` | Disable smart routing |
 | `BLOCKRUN_PROXY_PORT` | `8402`  | Proxy port            |
-| `BLOCKRUN_WALLET_KEY` | auto    | Wallet private key    |
 
 **Full reference:** [docs/configuration.md](docs/configuration.md)
 
@@ -268,7 +272,7 @@ Use ClawRouter directly in your code:
 import { startProxy, route } from "openclaw-router";
 
 // Start proxy server
-const proxy = await startProxy({ walletKey: "0x..." });
+const proxy = await startProxy({});
 
 // Or use router directly (no proxy)
 const decision = route("Prove sqrt(2) is irrational", ...);
@@ -278,11 +282,10 @@ const decision = route("Prove sqrt(2) is irrational", ...);
 
 ---
 
-## Performance Optimizations (v0.3)
+## Performance Optimizations
 
 - **SSE heartbeat**: Sends headers + heartbeat immediately, preventing upstream timeouts
-- **Response dedup**: SHA-256 hash → 30s cache, prevents double-charge on retries
-- **Payment pre-auth**: Caches 402 params, pre-signs USDC, skips 402 round trip (~200ms saved)
+- **Response dedup**: SHA-256 hash → 30s cache, prevents duplicate requests on retries
 
 ---
 
@@ -300,12 +303,11 @@ They're built for developers. ClawRouter is built for **agents**.
 
 |             | OpenRouter / LiteLLM        | ClawRouter                       |
 | ----------- | --------------------------- | -------------------------------- |
-| **Setup**   | Human creates account       | Agent generates wallet           |
-| **Auth**    | API key (shared secret)     | Wallet signature (cryptographic) |
-| **Payment** | Prepaid balance (custodial) | Per-request (non-custodial)      |
+| **Setup**   | Human creates account       | Simple config file               |
+| **Auth**    | API key (shared secret)     | API key (standard)               |
 | **Routing** | Proprietary / closed        | Open source, client-side         |
 
-Agents shouldn't need a human to paste API keys. They should generate a wallet, receive funds, and pay per request — programmatically.
+ClawRouter provides transparent, open-source routing that agents can understand and control.
 
 ---
 
@@ -334,8 +336,8 @@ npm install
 npm run build
 npm run typecheck
 
-# End-to-end tests (requires funded wallet)
-BLOCKRUN_WALLET_KEY=0x... npx tsx test-e2e.ts
+# Run tests
+npm run test:resilience:quick
 ```
 
 ---
@@ -343,9 +345,8 @@ BLOCKRUN_WALLET_KEY=0x... npx tsx test-e2e.ts
 ## Roadmap
 
 - [x] Smart routing — 15-dimension weighted scoring, 4-tier model selection
-- [x] x402 payments — per-request USDC micropayments, non-custodial
-- [x] Response dedup — prevents double-charge on retries
-- [x] Payment pre-auth — skips 402 round trip
+- [x] API key authentication — simple, secure authentication
+- [x] Response dedup — prevents duplicate requests on retries
 - [x] SSE heartbeat — prevents upstream timeouts
 - [x] Agentic auto-detect — auto-switch to agentic models for multi-step tasks
 - [x] Tool detection — auto-switch to agentic mode when tools array present
@@ -353,10 +354,10 @@ BLOCKRUN_WALLET_KEY=0x... npx tsx test-e2e.ts
 - [x] Session persistence — pin model for multi-turn conversations
 - [x] Cost tracking — /stats command with savings dashboard
 - [x] Model aliases — `/model free`, `/model sonnet`, `/model grok`, etc.
-- [x] Free tier — gpt-oss-120b for $0 when wallet is empty
+- [x] Multi-provider support — BlockRun, OpenRouter, NVIDIA, etc.
 - [ ] Cascade routing — try cheap model first, escalate on low quality
 - [ ] Spend controls — daily/monthly budgets
-- [ ] Remote analytics — cost tracking at blockrun.ai
+- [ ] Remote analytics — cost tracking dashboard
 
 ---
 

@@ -2,7 +2,7 @@
  * Authentication Strategy Interface
  *
  * Defines the contract for different authentication methods
- * (x402 payment, API key, OAuth, etc.)
+ * (API key, OAuth, etc.)
  */
 
 import type { AuthType } from "../types.js";

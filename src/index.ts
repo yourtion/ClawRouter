@@ -1,14 +1,14 @@
 /**
  * openclaw-router
  *
- * Smart multi-provider LLM router for OpenClaw — 30+ models, x402 micropayments, API key auth, 78% cost savings.
+ * Smart multi-provider LLM router for OpenClaw — 30+ models, API key auth, 78% cost savings.
  * Routes each request to the cheapest model that can handle it.
  *
  * Usage:
  *   # Install the plugin
  *   openclaw plugins install openclaw-router
  *
- *   # Fund your wallet with USDC on Base (for x402 payments)
+ *   # Configure API keys in config/providers.json
  *
  *   # Use smart routing (auto-picks cheapest model)
  *   openclaw models set auto
@@ -25,11 +25,7 @@ import type {
 } from "./types.js";
 import { blockrunProvider, setActiveProxy } from "./provider.js";
 import { startProxy, getProxyPort } from "./proxy.js";
-// x402 payment removed - auth and wallet generation no longer needed
-// import { resolveOrGenerateWalletKey, WALLET_FILE } from "./auth.js";
 import type { RoutingConfig } from "./router/index.js";
-// Balance monitoring removed - not needed with API key authentication
-// import { BalanceMonitor } from "./balance.js";
 // Multi-provider support
 import {
   ProviderRegistry,
@@ -177,7 +173,7 @@ async function injectMultiProviderConfig(
       config.models.providers[providerId] = {
         baseUrl,
         api: "openai-completions",
-        apiKey: provider.metadata.authType === "api_key" ? "provider-handles-api-key" : "x402-proxy-handles-auth",
+        apiKey: "provider-handles-api-key",
         models: allModels
           .filter((m) => m.providerId === providerId)
           .map((m) => ({
@@ -230,8 +226,8 @@ function injectModelsConfig(logger: { info: (msg: string) => void }): void {
         baseUrl: expectedBaseUrl,
         api: "openai-completions",
         // apiKey is required by pi-coding-agent's ModelRegistry for providers with models.
-        // We use a placeholder since the proxy handles real x402 auth internally.
-        apiKey: "x402-proxy-handles-auth",
+        // We use a placeholder since the proxy handles API key auth internally.
+        apiKey: "provider-handles-api-key",
         models: OPENCLAW_MODELS,
       };
       needsWrite = true;
@@ -243,7 +239,7 @@ function injectModelsConfig(logger: { info: (msg: string) => void }): void {
       }
       // Ensure apiKey is present (required by ModelRegistry for /model picker)
       if (!config.models.providers.blockrun.apiKey) {
-        config.models.providers.blockrun.apiKey = "x402-proxy-handles-auth";
+        config.models.providers.blockrun.apiKey = "provider-handles-api-key";
         needsWrite = true;
       }
       // Always refresh models list (ensures new aliases are available)
@@ -372,11 +368,11 @@ function injectAuthProfile(logger: { info: (msg: string) => void }): void {
       }
 
       // Inject placeholder auth for blockrun (OpenClaw format)
-      // The proxy handles real x402 auth internally, this just satisfies OpenClaw's lookup
+      // The proxy handles API key auth internally, this just satisfies OpenClaw's lookup
       store.profiles[profileKey] = {
         type: "api_key",
         provider: "blockrun",
-        key: "x402-proxy-handles-auth",
+        key: "provider-handles-api-key",
       };
 
       try {
@@ -397,7 +393,7 @@ function injectAuthProfile(logger: { info: (msg: string) => void }): void {
 let activeProxyHandle: Awaited<ReturnType<typeof startProxy>> | null = null;
 
 /**
- * Start the x402 proxy in the background.
+ * Start the API proxy in the background.
  * Called from register() because OpenClaw's loader only invokes register(),
  * treating activate() as an alias (def.register ?? def.activate).
  */
@@ -406,7 +402,6 @@ async function startProxyInBackground(api: OpenClawPluginApi): Promise<void> {
   const routingConfig = api.pluginConfig?.routing as Partial<RoutingConfig> | undefined;
 
   const proxy = await startProxy({
-    walletKey: "0x0000000000000000000000000000000000000000000000000000000000000001", // Dummy key (not used with API key auth)
     routingConfig,
     onReady: (port) => {
       api.logger.info(`BlockRun proxy listening on port ${port}`);
@@ -421,8 +416,6 @@ async function startProxyInBackground(api: OpenClawPluginApi): Promise<void> {
         `[${decision.tier}] ${decision.model} $${cost} (saved ${saved}%) | ${decision.reasoning}`,
       );
     },
-    onLowBalance: undefined, // Not used with API key auth
-    onInsufficientFunds: undefined, // Not used with API key auth
   });
 
   setActiveProxy(proxy);
@@ -467,7 +460,7 @@ async function createStatsCommand(): Promise<OpenClawPluginCommandDefinition> {
 const plugin: OpenClawPluginDefinition = {
   id: "clawrouter",
   name: "ClawRouter",
-  description: "Smart LLM router — 30+ models, x402 micropayments, 78% cost savings",
+  description: "Smart LLM router — 30+ models, API key auth, 78% cost savings",
   version: VERSION,
 
   async register(api: OpenClawPluginApi) {
@@ -514,7 +507,7 @@ const plugin: OpenClawPluginDefinition = {
       baseUrl: `http://127.0.0.1:${runtimePort}/v1`,
       api: "openai-completions",
       // apiKey is required by pi-coding-agent's ModelRegistry for providers with models.
-      apiKey: "x402-proxy-handles-auth",
+      apiKey: "provider-handles-api-key",
       models: OPENCLAW_MODELS,
     };
 
@@ -562,7 +555,7 @@ const plugin: OpenClawPluginDefinition = {
       },
     });
 
-    // Start x402 proxy and wait for it to be ready
+    // Start API proxy and wait for it to be ready
     // Must happen in register() for CLI command support (services only start with gateway)
     try {
       await startProxyInBackground(api);
@@ -585,7 +578,7 @@ export default plugin;
 
 // Re-export for programmatic use
 export { startProxy, getProxyPort } from "./proxy.js";
-export type { ProxyOptions, ProxyHandle, LowBalanceInfo, InsufficientFundsInfo } from "./proxy.js";
+export type { ProxyOptions, ProxyHandle } from "./proxy.js";
 export { blockrunProvider } from "./provider.js";
 // Multi-provider exports
 export {
@@ -604,7 +597,6 @@ export type {
   StandardModel,
   RequestContext,
   ProviderResponse,
-  ProviderBalanceInfo,
   AuthConfig,
 } from "./providers/index.js";
 export {
@@ -628,16 +620,6 @@ export { logUsage } from "./logger.js";
 export type { UsageEntry } from "./logger.js";
 export { RequestDeduplicator } from "./dedup.js";
 export type { CachedResponse } from "./dedup.js";
-// Payment cache removed - x402 payment deprecated
-export {
-  InsufficientFundsError,
-  EmptyWalletError,
-  RpcError,
-  isInsufficientFundsError,
-  isEmptyWalletError,
-  isBalanceError,
-  isRpcError,
-} from "./errors.js";
 export { fetchWithRetry, isRetryable, DEFAULT_RETRY_CONFIG } from "./retry.js";
 export type { RetryConfig } from "./retry.js";
 export { getStats, formatStatsAscii } from "./stats.js";

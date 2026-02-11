@@ -2,7 +2,7 @@
  * BlockRun ProviderPlugin for OpenClaw
  *
  * Registers BlockRun as an LLM provider in OpenClaw.
- * Uses a local x402 proxy to handle micropayments transparently —
+ * Uses a local API proxy to handle authentication transparently —
  * pi-ai sees a standard OpenAI-compatible API at localhost.
  */
 
@@ -39,15 +39,14 @@ export const blockrunProvider: ProviderPlugin = {
   // Model definitions — dynamically set to proxy URL
   get models() {
     if (!activeProxy) {
-      // Fallback: point to BlockRun API directly (won't handle x402, but
+      // Fallback: point to BlockRun API directly (requires API key,
       // allows config loading before proxy starts)
       return buildProviderModels("https://blockrun.ai/api");
     }
     return buildProviderModels(activeProxy.baseUrl);
   },
 
-  // No auth required — the x402 proxy handles wallet-based payments internally.
-  // The proxy auto-generates a wallet on first run and stores it at
-  // ~/.openclaw/blockrun/wallet.key. Users just fund that wallet with USDC.
+  // No auth required — the API proxy handles authentication internally.
+  // Users configure API keys in ~/.openclaw/blockrun/providers.json
   auth: [],
 };

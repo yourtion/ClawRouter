@@ -4,8 +4,7 @@
  * Maps BlockRun's 30+ AI models to OpenClaw's ModelDefinitionConfig format.
  * All models use the "openai-completions" API since BlockRun is OpenAI-compatible.
  *
- * Pricing is in USD per 1M tokens. Operators pay these rates via x402;
- * they set their own markup when reselling to end users (Phase 2).
+ * Pricing is in USD per 1M tokens. Providers may have their own pricing.
  */
 
 import type { ModelDefinitionConfig, ModelProviderConfig } from "./types.js";
