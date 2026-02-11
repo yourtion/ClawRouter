@@ -8,7 +8,6 @@ OpenClaw Router v0.5+ includes intelligent routing features that work automatica
 - [Tool Detection](#tool-detection)
 - [Context-Length-Aware Routing](#context-length-aware-routing)
 - [Model Aliases](#model-aliases)
-- [Free Tier Fallback](#free-tier-fallback)
 - [Session Persistence](#session-persistence)
 - [Cost Tracking with /stats](#cost-tracking-with-stats)
 
@@ -62,7 +61,7 @@ When your request includes a `tools` array (function calling), OpenClaw Router a
 ```typescript
 // Request with tools → auto-agentic mode
 {
-  model: "blockrun/auto",
+  model: "auto",
   messages: [{ role: "user", content: "Check the weather" }],
   tools: [{ type: "function", function: { name: "get_weather", ... } }]
 }
@@ -109,23 +108,7 @@ Use short aliases instead of full model paths:
 /model grok-fast # xai/grok-4-fast-reasoning
 ```
 
-All aliases work with `/model blockrun/xxx` or just `/model xxx`.
-
----
-
-## Free Tier Fallback
-
-When your wallet balance hits $0, OpenClaw Router automatically falls back to the free model (`gpt-oss-120b`):
-
-```
-Wallet: $0.00
-Request: "Help me write a function"
-→ Routes to gpt-oss-120b (FREE)
-→ No "insufficient funds" error
-→ Keep building while you top up
-```
-
-You'll never get blocked by an empty wallet — the free tier keeps you running.
+All aliases work with `/model clawrouter/xxx` or just `/model xxx`.
 
 ---
 
@@ -172,4 +155,4 @@ Output:
 +============================================================+
 ```
 
-Stats are stored locally at `~/.openclaw/blockrun/logs/` and aggregated on demand.
+Stats are stored locally at `~/.openclaw/clawrouter/logs/` and aggregated on demand.

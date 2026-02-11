@@ -29,10 +29,10 @@ try {
   const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
   let changed = false;
 
-  // Remove blockrun provider
-  if (config.models?.providers?.blockrun) {
-    delete config.models.providers.blockrun;
-    console.log('  Removed blockrun provider');
+  // Remove clawrouter provider
+  if (config.models?.providers?.clawrouter) {
+    delete config.models.providers.clawrouter;
+    console.log('  Removed clawrouter provider');
     changed = true;
   }
 
@@ -50,7 +50,7 @@ try {
   if (Array.isArray(config.plugins?.allow)) {
     const before = config.plugins.allow.length;
     config.plugins.allow = config.plugins.allow.filter(
-      p => p !== 'clawrouter' && p !== '@blockrun/clawrouter'
+      p => p !== 'clawrouter' && p !== 'openclaw-router'
     );
     if (config.plugins.allow.length !== before) {
       console.log('  Removed from plugins.allow');
@@ -58,25 +58,25 @@ try {
     }
   }
 
-  // Reset default model if it's blockrun/auto
-  if (config.agents?.defaults?.model?.primary === 'blockrun/auto') {
+  // Reset default model if it's auto
+  if (config.agents?.defaults?.model?.primary === 'auto') {
     delete config.agents.defaults.model.primary;
-    console.log('  Reset default model (was blockrun/auto)');
+    console.log('  Reset default model (was auto)');
     changed = true;
   }
 
-  // Remove blockrun models from allowlist
+  // Remove clawrouter models from allowlist
   if (config.agents?.defaults?.models) {
     const models = config.agents.defaults.models;
     let removedCount = 0;
     for (const key of Object.keys(models)) {
-      if (key.startsWith('blockrun/')) {
+      if (key.startsWith('clawrouter/')) {
         delete models[key];
         removedCount++;
       }
     }
     if (removedCount > 0) {
-      console.log('  Removed ' + removedCount + ' blockrun models from allowlist');
+      console.log('  Removed ' + removedCount + ' clawrouter models from allowlist');
       changed = true;
     }
   }
@@ -115,10 +115,10 @@ for (const agentId of agents) {
 
   try {
     const store = JSON.parse(fs.readFileSync(authPath, 'utf8'));
-    if (store.profiles?.['blockrun:default']) {
-      delete store.profiles['blockrun:default'];
+    if (store.profiles?.['clawrouter:default']) {
+      delete store.profiles['clawrouter:default'];
       fs.writeFileSync(authPath, JSON.stringify(store, null, 2));
-      console.log('  Removed blockrun auth from ' + agentId);
+      console.log('  Removed clawrouter auth from ' + agentId);
     }
   } catch {}
 }

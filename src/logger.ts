@@ -2,7 +2,7 @@
  * Usage Logger
  *
  * Logs every LLM request as a JSON line to a daily log file.
- * Files: ~/.openclaw/blockrun/logs/usage-YYYY-MM-DD.jsonl
+ * Files: ~/.openclaw/clawrouter/logs/usage-YYYY-MM-DD.jsonl
  *
  * MVP: append-only JSON lines. No rotation, no cleanup.
  * Logging never breaks the request flow — all errors are swallowed.

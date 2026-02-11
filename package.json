@@ -1,7 +1,7 @@
 {
   "name": "openclaw-router",
-  "version": "0.7.0",
-  "description": "Smart multi-provider LLM router for OpenClaw. Save 78% on inference costs with 30+ models and support for multiple providers (BlockRun, OpenRouter, NVIDIA, etc.).",
+  "version": "0.8.0",
+  "description": "Smart multi-provider LLM router for OpenClaw. Save 78% on inference costs with 30+ models and support for multiple providers (OpenRouter, NVIDIA, etc.).",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -47,18 +47,17 @@
     "smart-routing",
     "ai",
     "openclaw",
-    "blockrun",
     "cost-optimization",
     "openai",
     "anthropic",
     "gemini",
     "deepseek"
   ],
-  "author": "BlockRun <hello@blockrun.ai>",
+  "author": "OpenClaw Router Community",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/BlockRunAI/ClawRouter.git"
+    "url": "git+https://github.com/yourtion/ClawRouter.git"
   },
   "peerDependencies": {
     "openclaw": ">=2025.1.0"

@@ -1,5 +1,3 @@
-![ClawRouter Banner](assets/banner.png)
-
 <div align="center">
 
 Route every request to the cheapest model that can handle it.
@@ -10,7 +8,7 @@ Route every request to the cheapest model that can handle it.
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://typescriptlang.org)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-brightgreen.svg)](https://nodejs.org)
 
-[Docs](https://blockrun.ai/docs) &middot; [Models](https://blockrun.ai/models) &middot; [Configuration](docs/configuration.md) &middot; [Features](docs/features.md) &middot; [Troubleshooting](docs/troubleshooting.md) &middot; [Telegram](https://t.me/blockrunAI) &middot; [X](https://x.com/BlockRunAI)
+[Configuration](docs/configuration.md) &middot; [Features](docs/features.md) &middot; [Troubleshooting](docs/troubleshooting.md)
 
 </div>
 
@@ -42,24 +40,22 @@ Route every request to the cheapest model that can handle it.
 
 ```bash
 # 1. Install with smart routing enabled by default
-curl -fsSL https://raw.githubusercontent.com/BlockRunAI/ClawRouter/main/scripts/reinstall.sh | bash
+npm install -g openclaw-router
 
-# 2. Configure API keys in ~/.openclaw/blockrun/providers.json
-# Example: {"providers": [{"id": "blockrun", "enabled": true, "priority": 100, "auth": {"type": "api_key", "credentials": {"apiKey": "your-api-key"}}}]}
+# 2. Configure API keys in ~/.openclaw/clawrouter/providers.json
+# Example: {"providers": [{"id": "openrouter", "enabled": true, "priority": 100, "auth": {"type": "api_key", "credentials": {"apiKey": "your-api-key"}}}]}
 
 # 3. Restart OpenClaw gateway
 openclaw gateway restart
 ```
 
-Done! Smart routing (`blockrun/auto`) is now your default model.
+Done! Smart routing is now your default model.
 
 ### Tips
 
-- **Use `/model blockrun/auto`** in any conversation to switch on the fly
 - **Free tier?** Use `/model free` — routes to gpt-oss-120b at $0
 - **Model aliases:** `/model sonnet`, `/model grok`, `/model deepseek`, `/model kimi`
-- **Want a specific model?** Use `blockrun/openai/gpt-4o` or `blockrun/anthropic/claude-sonnet-4`
-- **Configure providers:** Edit `~/.openclaw/blockrun/providers.json` to add API keys
+- **Configure providers:** Edit `~/.openclaw/clawrouter/providers.json` to add API keys
 
 ---
 
@@ -71,11 +67,11 @@ Done! Smart routing (`blockrun/auto`) is now your default model.
 
 **The flow:**
 
-1. **Configure API keys** in `~/.openclaw/blockrun/providers.json`
+1. **Configure API keys** in `~/.openclaw/clawrouter/providers.json`
 2. **Request any model** — "help me call Grok to check @hosseeb's opinion on AI agents"
 3. **ClawRouter routes it** — spawns a Grok sub-agent via `xai/grok-3`, uses API key auth
 
-Simple API key authentication. No blockchain. No wallets.
+Simple API key authentication.
 
 ---
 
@@ -115,7 +111,6 @@ ClawRouter v0.5+ includes intelligent features that work automatically:
 - **Context-aware** — filters models that can't handle your context size
 - **Model aliases** — `/model free`, `/model sonnet`, `/model grok`
 - **Session persistence** — pins model for multi-turn conversations
-- **Free tier fallback** — keeps working when wallet is empty
 
 **Full details:** [docs/features.md](docs/features.md)
 
@@ -135,7 +130,7 @@ Compared to **$75/M** for Claude Opus = **96% savings** on a typical workload.
 
 ## Models
 
-30+ models across 6 providers, one wallet:
+30+ models across 6 providers:
 
 | Model                 | Input $/M | Output $/M | Context | Reasoning |
 | --------------------- | --------- | ---------- | ------- | :-------: |
@@ -165,7 +160,7 @@ Compared to **$75/M** for Claude Opus = **96% savings** on a typical workload.
 | **Moonshot**          |           |            |         |           |
 | kimi-k2.5             | $0.50     | $2.40      | 262K    |    \*     |
 
-> **Free tier:** `gpt-oss-120b` costs nothing and serves as automatic fallback when wallet is empty.
+> **Free tier:** `gpt-oss-120b` costs nothing and serves as free model option.
 
 Full list: [`src/models.ts`](src/models.ts)
 
@@ -184,29 +179,17 @@ Best for: parallel web research, multi-agent orchestration, long-running automat
 
 ## Provider Configuration
 
-Configure providers in `~/.openclaw/blockrun/providers.json`:
+Configure providers in `~/.openclaw/clawrouter/providers.json`:
 
 ```json
 {
   "version": "2.0",
   "providers": [
     {
-      "id": "blockrun",
-      "type": "blockrun",
-      "enabled": true,
-      "priority": 100,
-      "auth": {
-        "type": "api_key",
-        "credentials": {
-          "apiKey": "${BLOCKRUN_API_KEY}"
-        }
-      }
-    },
-    {
       "id": "openrouter",
       "type": "openrouter",
       "enabled": true,
-      "priority": 90,
+      "priority": 100,
       "auth": {
         "type": "api_key",
         "credentials": {
@@ -258,7 +241,7 @@ For basic usage, minimal configuration needed. For advanced options:
 | Setting               | Default | Description           |
 | --------------------- | ------- | --------------------- |
 | `CLAWROUTER_DISABLED` | `false` | Disable smart routing |
-| `BLOCKRUN_PROXY_PORT` | `8402`  | Proxy port            |
+| `CLAWROUTER_PROXY_PORT` | `8402`  | Proxy port            |
 
 **Full reference:** [docs/configuration.md](docs/configuration.md)
 
@@ -330,7 +313,7 @@ curl http://localhost:8402/health
 ## Development
 
 ```bash
-git clone https://github.com/BlockRunAI/ClawRouter.git
+git clone https://github.com/yourtion/ClawRouter.git
 cd ClawRouter
 npm install
 npm run build
@@ -354,7 +337,7 @@ npm run test:resilience:quick
 - [x] Session persistence — pin model for multi-turn conversations
 - [x] Cost tracking — /stats command with savings dashboard
 - [x] Model aliases — `/model free`, `/model sonnet`, `/model grok`, etc.
-- [x] Multi-provider support — BlockRun, OpenRouter, NVIDIA, etc.
+- [x] Multi-provider support — OpenRouter, NVIDIA, etc.
 - [ ] Cascade routing — try cheap model first, escalate on low quality
 - [ ] Spend controls — daily/monthly budgets
 - [ ] Remote analytics — cost tracking dashboard
@@ -368,8 +351,6 @@ MIT
 ---
 
 <div align="center">
-
-**[BlockRun](https://blockrun.ai)** — Pay-per-request AI infrastructure
 
 If ClawRouter saves you money, consider starring the repo.
 

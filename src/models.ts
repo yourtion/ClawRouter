@@ -1,8 +1,12 @@
 /**
- * BlockRun Model Definitions for OpenClaw
+ * Model Definitions for OpenClaw
  *
- * Maps BlockRun's 30+ AI models to OpenClaw's ModelDefinitionConfig format.
- * All models use the "openai-completions" API since BlockRun is OpenAI-compatible.
+ * Maps 30+ AI models to OpenClaw's ModelDefinitionConfig format.
+ * All models use the "openai-completions" API since providers are OpenAI-compatible.
+ *
+ * NOTE: BLOCKRUN_MODELS is the model directory/namespace name, not a payment method.
+ * This constant name is kept for backwards compatibility. The project now uses
+ * API key authentication exclusively.
  *
  * Pricing is in USD per 1M tokens. Providers may have their own pricing.
  */

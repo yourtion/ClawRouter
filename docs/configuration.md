@@ -5,8 +5,6 @@ Complete reference for OpenClaw Router configuration options.
 ## Table of Contents
 
 - [Environment Variables](#environment-variables)
-- [Wallet Configuration](#wallet-configuration)
-- [Wallet Backup & Recovery](#wallet-backup--recovery)
 - [Proxy Settings](#proxy-settings)
 - [Programmatic Usage](#programmatic-usage)
 - [Routing Configuration](#routing-configuration)
@@ -18,148 +16,25 @@ Complete reference for OpenClaw Router configuration options.
 
 ## Environment Variables
 
-| Variable              | Default | Description                                                              |
-| --------------------- | ------- | ------------------------------------------------------------------------ |
-| `BLOCKRUN_WALLET_KEY` | -       | Ethereum private key (hex, 0x-prefixed). Used if no saved wallet exists. |
-| `BLOCKRUN_PROXY_PORT` | `8402`  | Port for the local x402 proxy server.                                    |
+| Variable                | Default | Description                                         |
+| ----------------------- | ------- | --------------------------------------------------- |
+| `CLAWROUTER_PROXY_PORT` | `8402`  | Port for the local proxy server.                    |
 
-### BLOCKRUN_WALLET_KEY
-
-The wallet private key for signing x402 micropayments.
-
-```bash
-export BLOCKRUN_WALLET_KEY=0x...your_private_key...
-```
-
-**Resolution order:**
-
-1. Saved file (`~/.openclaw/blockrun/wallet.key`) — checked first
-2. `BLOCKRUN_WALLET_KEY` environment variable — used if no saved file
-3. Auto-generate — creates new wallet and saves to file
-
-> **Security Note:** The saved file takes priority to prevent accidentally switching wallets and losing access to funded balances.
-
-### BLOCKRUN_PROXY_PORT
+### CLAWROUTER_PROXY_PORT
 
 Configure the proxy to listen on a different port:
 
 ```bash
-export BLOCKRUN_PROXY_PORT=8403
+export CLAWROUTER_PROXY_PORT=8403
 openclaw gateway restart
 ```
 
 **Behavior:**
 
 - If a proxy is already running on the configured port, OpenClaw Router will **reuse it** instead of failing with `EADDRINUSE`
-- The proxy returns the wallet address of the existing instance, not the configured wallet
-- A warning is logged if the existing proxy uses a different wallet
+- A warning is logged if the existing proxy uses a different configuration
 
 **Valid values:** 1-65535 (integers only). Invalid values fall back to 8402.
-
----
-
-## Wallet Configuration
-
-### Check Active Wallet
-
-```bash
-# View wallet address
-curl http://localhost:8402/health | jq .wallet
-
-# View wallet with balance info
-curl "http://localhost:8402/health?full=true" | jq
-```
-
-Response:
-
-```json
-{
-  "status": "ok",
-  "wallet": "0x...",
-  "balance": "$2.50",
-  "isLow": false,
-  "isEmpty": false
-}
-```
-
-### Switch Wallets
-
-To use a different wallet:
-
-```bash
-# 1. Remove saved wallet
-rm ~/.openclaw/blockrun/wallet.key
-
-# 2. Set new wallet key
-export BLOCKRUN_WALLET_KEY=0x...
-
-# 3. Restart
-openclaw gateway restart
-```
-
-### Backup Wallet
-
-```bash
-# Backup wallet key
-cp ~/.openclaw/blockrun/wallet.key ~/backup/
-
-# View wallet address from key file
-cat ~/.openclaw/blockrun/wallet.key
-```
-
-### Wallet Backup & Recovery
-
-Your wallet private key is stored at `~/.openclaw/blockrun/wallet.key`. **Back up this file before terminating any VPS or machine!**
-
-#### Using the `/wallet` Command
-
-OpenClaw Router provides a built-in command for wallet management:
-
-```bash
-# Check wallet status (address, balance, file location)
-/wallet
-
-# Export private key for backup (shows the actual key)
-/wallet export
-```
-
-The `/wallet export` command displays your private key so you can copy it before terminating a machine.
-
-#### Manual Backup
-
-```bash
-# Option 1: Copy the key file
-cp ~/.openclaw/blockrun/wallet.key ~/backup-wallet.key
-
-# Option 2: View and copy the key
-cat ~/.openclaw/blockrun/wallet.key
-```
-
-#### Restore on a New Machine
-
-```bash
-# Option 1: Set environment variable (before installing OpenClaw Router)
-export BLOCKRUN_WALLET_KEY=0x...your_key_here...
-openclaw plugins install openclaw-router
-
-# Option 2: Create the key file directly
-mkdir -p ~/.openclaw/blockrun
-echo "0x...your_key_here..." > ~/.openclaw/blockrun/wallet.key
-chmod 600 ~/.openclaw/blockrun/wallet.key
-openclaw plugins install openclaw-router
-```
-
-**Important:** If a saved wallet file exists, it takes priority over the environment variable. To use a different wallet, delete the existing file first.
-
-#### Lost Key Recovery
-
-If you lose your wallet key, **there is no way to recover it**. The wallet is self-custodial, meaning only you have the private key. We do not store keys or have any way to restore access.
-
-**Prevention tips:**
-
-- Run `/wallet export` before terminating any VPS
-- Keep a secure backup of `~/.openclaw/blockrun/wallet.key`
-- For production use, consider using a hardware wallet or key management system
 
 ---
 
@@ -179,7 +54,7 @@ Session 2: startProxy() → detects existing, reuses handle
 - Health check is performed on the configured port before starting
 - If responsive, returns a handle that uses the existing proxy
 - `close()` on reused handles is a no-op (doesn't stop the original server)
-- Warning logged if existing proxy uses a different wallet
+- Warning logged if existing proxy uses a different configuration
 
 ### Programmatic Usage
 
@@ -189,7 +64,6 @@ Use OpenClaw Router without OpenClaw:
 import { startProxy } from "openclaw-router";
 
 const proxy = await startProxy({
-  walletKey: process.env.BLOCKRUN_WALLET_KEY!,
   onReady: (port) => console.log(`Proxy on port ${port}`),
   onRouted: (d) => console.log(`${d.model} saved ${(d.savings * 100).toFixed(0)}%`),
 });
@@ -199,7 +73,7 @@ const res = await fetch(`${proxy.baseUrl}/v1/chat/completions`, {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-    model: "blockrun/auto",
+    model: "auto",
     messages: [{ role: "user", content: "What is 2+2?" }],
   }),
 });
@@ -207,7 +81,7 @@ const res = await fetch(`${proxy.baseUrl}/v1/chat/completions`, {
 await proxy.close();
 ```
 
-Or use the router directly (no proxy, no payments):
+Or use the router directly (no proxy):
 
 ```typescript
 import { route, DEFAULT_ROUTING_CONFIG, BLOCKRUN_MODELS } from "openclaw-router";
@@ -242,24 +116,16 @@ All options for `startProxy()`:
 import { startProxy } from "openclaw-router";
 
 const proxy = await startProxy({
-  walletKey: "0x...",
-
   // Port configuration
-  port: 8402, // Default: 8402 or BLOCKRUN_PROXY_PORT
+  port: 8402, // Default: 8402 or CLAWROUTER_PROXY_PORT
 
   // Timeouts
-  requestTimeoutMs: 180000, // 3 minutes (covers on-chain tx + LLM response)
-
-  // API base (for testing)
-  apiBase: "https://blockrun.ai/api",
+  requestTimeoutMs: 180000, // 3 minutes
 
   // Callbacks
   onReady: (port) => console.log(`Proxy ready on ${port}`),
   onError: (error) => console.error(error),
   onRouted: (decision) => console.log(decision.model, decision.tier),
-  onLowBalance: (info) => console.warn(`Low balance: ${info.balanceUSD}`),
-  onInsufficientFunds: (info) => console.error(`Need ${info.requiredUSD}`),
-  onPayment: (info) => console.log(`Paid ${info.amount} for ${info.model}`),
 
   // Routing config overrides
   routingConfig: {
@@ -422,9 +288,9 @@ routing:
 
 ## Testing Configuration
 
-### Dry Run (No Payments)
+### Dry Run (No API Calls)
 
-For testing routing without spending USDC:
+For testing routing without making API calls:
 
 ```typescript
 import { route, DEFAULT_ROUTING_CONFIG, BLOCKRUN_MODELS } from "openclaw-router";
@@ -448,12 +314,12 @@ console.log(decision);
 ### Run Tests
 
 ```bash
-# Router tests (no wallet needed)
+# Router tests
 npx tsx test/e2e.ts
 
 # Proxy reuse tests
 npx tsx test/proxy-reuse.ts
 
-# Full e2e with payments (requires funded wallet)
-BLOCKRUN_WALLET_KEY=0x... npx tsx test/e2e.ts
+# Full test suite
+npm run test:resilience:quick
 ```

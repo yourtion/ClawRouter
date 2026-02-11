@@ -2,29 +2,29 @@
   "version": "2.0",
   "providers": [
     {
-      "id": "blockrun",
-      "type": "blockrun",
+      "id": "openrouter",
+      "type": "openrouter",
       "enabled": true,
       "priority": 100,
       "auth": {
-        "type": "x402_payment",
+        "type": "api_key",
         "credentials": {
-          "walletKey": "${BLOCKRUN_WALLET_KEY}"
+          "apiKey": "${OPENROUTER_API_KEY}"
         }
       },
       "models": {
-        "autoSync": false
+        "autoSync": true
       }
     },
     {
-      "id": "openrouter",
-      "type": "openrouter",
+      "id": "nvidia",
+      "type": "nvidia",
       "enabled": true,
       "priority": 90,
       "auth": {
         "type": "api_key",
         "credentials": {
-          "apiKey": "${OPENROUTER_API_KEY}"
+          "apiKey": "${NVIDIA_API_KEY}"
         }
       },
       "models": {

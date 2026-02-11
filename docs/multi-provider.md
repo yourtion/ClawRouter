@@ -2,7 +2,7 @@
 
 ## Overview
 
-OpenClaw Router now supports multiple LLM providers (BlockRun, OpenRouter, NVIDIA, etc.) with different authentication methods (x402 micropayments, API keys, etc.).
+OpenClaw Router now supports multiple LLM providers (OpenRouter, NVIDIA, etc.) with API key authentication.
 
 ## Architecture
 
@@ -10,7 +10,7 @@ OpenClaw Router now supports multiple LLM providers (BlockRun, OpenRouter, NVIDI
 
 1. **IProvider Interface** - Standardized contract for all providers
 2. **ProviderRegistry** - Manages provider instances and priority-based selection
-3. **Auth Strategies** - Pluggable authentication (x402, API Key, OAuth)
+3. **Auth Strategies** - Pluggable authentication (API Key, OAuth)
 4. **Provider Factory** - Creates providers from configuration
 5. **Config Loader** - Loads provider settings from files/env vars
 
@@ -25,10 +25,11 @@ src/providers/
 ├── auth/
 │   ├── types.ts          # Auth strategy interface
 │   ├── api-key.ts        # API Key authentication
-│   └── x402.ts           # x402 payment authentication
+│   └── ...
 └── implementations/
     ├── blockrun.ts       # BlockRun provider
-    └── openrouter.ts     # OpenRouter provider
+    ├── openrouter.ts     # OpenRouter provider
+    └── ...
 ```
 
 ## Configuration
@@ -44,29 +45,29 @@ src/providers/
   "version": "2.0",
   "providers": [
     {
-      "id": "blockrun",
-      "type": "blockrun",
+      "id": "openrouter",
+      "type": "openrouter",
       "enabled": true,
       "priority": 100,
       "auth": {
-        "type": "x402_payment",
+        "type": "api_key",
         "credentials": {
-          "walletKey": "${BLOCKRUN_WALLET_KEY}"
+          "apiKey": "${OPENROUTER_API_KEY}"
         }
       },
       "models": {
-        "autoSync": false
+        "autoSync": true
       }
     },
     {
-      "id": "openrouter",
-      "type": "openrouter",
+      "id": "nvidia",
+      "type": "nvidia",
       "enabled": true,
       "priority": 90,
       "auth": {
         "type": "api_key",
         "credentials": {
-          "apiKey": "${OPENROUTER_API_KEY}"
+          "apiKey": "${NVIDIA_API_KEY}"
         }
       },
       "models": {
@@ -80,9 +81,6 @@ src/providers/
 ### Environment Variables
 
 ```bash
-# BlockRun (x402 micropayments)
-export BLOCKRUN_WALLET_KEY="0x..."
-
 # OpenRouter (API Key)
 export OPENROUTER_API_KEY="sk-or-..."
 
@@ -94,8 +92,7 @@ export NVIDIA_API_KEY="nvapi-..."
 
 Providers are selected based on `priority` value:
 - **Higher number** = Higher priority (preferred)
-- **100** = BlockRun (default highest)
-- **90** = OpenRouter (default)
+- **100** = Default highest
 - **1-100** = Custom providers
 
 ## Usage Examples
@@ -185,12 +182,6 @@ ProviderFactory.registerType("custom", CustomProvider);
 
 ## Migration Guide
 
-### For Existing BlockRun Users
-
-No changes required! The existing BlockRun provider continues to work.
-
-Your current configuration will be automatically migrated to the new format.
-
 ### To Add OpenRouter
 
 1. Set your API key:
@@ -230,13 +221,11 @@ openclaw gateway restart
 
 | Provider | Auth Type | Priority | Status |
 |----------|-----------|----------|--------|
-| BlockRun | x402 Payment | 100 | ✅ Stable |
-| OpenRouter | API Key | 90 | ✅ Stable |
-| NVIDIA | API Key | 80 | 🚧 Coming Soon |
+| OpenRouter | API Key | 100 | ✅ Stable |
+| NVIDIA | API Key | 90 | ✅ Stable |
 
 ### Authentication Methods
 
-- **x402 Payment** - Blockchain micropayments (BlockRun)
 - **API Key** - Traditional API keys (OpenRouter, NVIDIA)
 - **OAuth 2.0** - Planned for future providers
 - **Bearer Token** - Planned for future providers
@@ -276,7 +265,7 @@ cat ~/.openclaw/clawrouter/providers.json
 
 Models must be prefixed with provider ID:
 - ❌ `"openai/gpt-4o"`
-- ✅ `"blockrun/openai/gpt-4o"` or `"openrouter/openai/gpt-4o"`
+- ✅ `"openrouter/openai/gpt-4o"`
 
 ## Development
 

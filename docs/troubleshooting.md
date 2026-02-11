@@ -2,7 +2,7 @@
 
 Quick solutions for common OpenClaw Router issues.
 
-> Need help? [Open a Discussion](https://github.com/BlockRunAI/OpenClaw Router/discussions) or check [existing issues](https://github.com/BlockRunAI/OpenClaw Router/issues).
+> Need help? [Open a Discussion](https://github.com/yourtion/ClawRouter/discussions) or check [existing issues](https://github.com/yourtion/ClawRouter/issues).
 
 ## Table of Contents
 
@@ -36,67 +36,23 @@ openclaw logs --follow
 
 ## Common Errors
 
-### "Unknown model: blockrun/auto" or "Unknown model: auto"
+### "Unknown model: auto"
 
-Plugin isn't loaded or outdated. **Don't change the model name** — `blockrun/auto` is correct.
+Plugin isn't loaded or outdated.
 
-**Fix:** Update to v0.3.21+ which handles both `blockrun/auto` and `auto` (OpenClaw strips provider prefix). See [How to Update](#how-to-update).
+**Fix:** Update to the latest version: `npm update -g openclaw-router`
 
-### "No API key found for provider blockrun"
+### "No API key found for provider"
 
-Auth profile is missing or wasn't created properly.
+API key is missing or not configured properly.
 
-**Fix:** See [How to Update](#how-to-update) — the reinstall script automatically injects the auth profile.
+**Fix:** Check your provider configuration in `~/.openclaw/clawrouter/providers.json` and ensure API keys are set.
 
 ### "Config validation failed: plugin not found: clawrouter"
 
 Plugin directory was removed but config still references it. This blocks all OpenClaw commands until fixed.
 
 **Fix:** See [How to Update](#how-to-update) for complete cleanup steps.
-
-### "No USDC balance" / "Insufficient funds"
-
-Wallet needs funding.
-
-**Fix:**
-
-1. Find your wallet address (printed during install)
-2. Send USDC on **Base network** to that address
-3. $1-5 is enough for hundreds of requests
-4. Restart OpenClaw
-
----
-
-## Security Scanner Warnings
-
-### "WARNING: dangerous code patterns — possible credential harvesting"
-
-This is a **false positive**. OpenClaw Router legitimately:
-
-1. Reads `BLOCKRUN_WALLET_KEY` from environment (for authentication)
-2. Sends authenticated requests to BlockRun API (for x402 micropayments)
-
-This pattern triggers OpenClaw's security scanner, but it's the intended behavior — the wallet key is required to sign payment transactions. The code is fully open source and auditable.
-
-### "env-harvesting" Warning
-
-OpenClaw's security scanner may flag OpenClaw Router with:
-
-```
-[env-harvesting] Environment variable access combined with network send
-```
-
-**This is a false positive.** The scanner's heuristic (`env variable + network request = suspicious`) flags all payment plugins, but this pattern is inherently required for non-custodial payments.
-
-OpenClaw Router reads `BLOCKRUN_WALLET_KEY` to sign x402 payment transactions — this is required and intentional:
-
-- The wallet key is used **locally** for cryptographic signing (EIP-712)
-- The **signature** is transmitted, not the private key itself
-- The key **never leaves the machine** — only cryptographic proofs are sent
-- This is standard [x402 payment protocol](https://x402.org) behavior
-- Source code is [MIT licensed and fully auditable](https://github.com/BlockRunAI/OpenClaw Router)
-
-See [`openclaw.security.json`](../openclaw.security.json) for detailed security documentation and [this discussion](https://x.com/bc1beat/status/2020158972561428686) for more context.
 
 ---
 
@@ -110,7 +66,7 @@ If you need to use a different port:
 
 ```bash
 # Set custom port via environment variable
-export BLOCKRUN_PROXY_PORT=8403
+export CLAWROUTER_PROXY_PORT=8403
 openclaw gateway restart
 ```
 
@@ -126,11 +82,11 @@ lsof -i :8402
 ## How to Update
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/BlockRunAI/OpenClaw Router/main/scripts/reinstall.sh | bash
+npm update -g openclaw-router
 openclaw gateway restart
 ```
 
-This removes the old version, installs the latest, and restarts the gateway.
+This updates to the latest version and restarts the gateway.
 
 ---
 

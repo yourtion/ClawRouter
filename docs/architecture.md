@@ -7,7 +7,6 @@ Technical deep-dive into OpenClaw Router's internals.
 - [System Overview](#system-overview)
 - [Request Flow](#request-flow)
 - [Routing Engine](#routing-engine)
-- [Payment System](#payment-system)
 - [Optimizations](#optimizations)
 - [Source Structure](#source-structure)
 
@@ -23,30 +22,30 @@ Technical deep-dive into OpenClaw Router's internals.
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                 OpenClaw Router Proxy (localhost)                │
+│                 OpenClaw Router Proxy (localhost)           │
 │  ┌─────────────┐  ┌─────────────┐  ┌───────────────────┐   │
-│  │   Dedup     │→ │   Router    │→ │   x402 Payment    │   │
-│  │   Cache     │  │  (14-dim)   │  │   (EIP-712 USDC)  │   │
+│  │   Dedup     │→ │   Router    │→ │   API Key Auth    │   │
+│  │   Cache     │  │  (15-dim)   │  │                   │   │
 │  └─────────────┘  └─────────────┘  └───────────────────┘   │
 │                                                             │
 │  ┌─────────────┐  ┌─────────────┐  ┌───────────────────┐   │
-│  │  Fallback   │  │   Balance   │  │   SSE Heartbeat   │   │
-│  │   Chain     │  │   Monitor   │  │   (streaming)     │   │
+│  │  Fallback   │  │   Provider  │  │   SSE Heartbeat   │   │
+│  │   Chain     │  │   Registry  │  │   (streaming)     │   │
 │  └─────────────┘  └─────────────┘  └───────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                      BlockRun API                           │
-│    402 → Sign Payment → Retry → OpenAI/Anthropic/Google    │
+│                      Provider APIs                           │
+│    → OpenRouter | NVIDIA | OpenAI | Anthropic | Google    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 **Key Principles:**
 
 - **100% local routing** — No API calls for model selection
-- **Client-side only** — Your wallet key never leaves your machine
-- **Non-custodial** — USDC stays in your wallet until spent
+- **Client-side only** — Your API keys never leave your machine
+- **Multi-provider** — Support for multiple authentication methods
 
 ---
 
@@ -57,7 +56,7 @@ Technical deep-dive into OpenClaw Router's internals.
 ```
 POST /v1/chat/completions
 {
-  "model": "blockrun/auto",
+  "model": "auto",
   "messages": [{ "role": "user", "content": "What is 2+2?" }],
   "stream": true
 }
@@ -82,13 +81,13 @@ if (inflight) {
 }
 ```
 
-### 3. Smart Routing (if model is `blockrun/auto`)
+### 3. Smart Routing (if model is `auto`)
 
 ```typescript
 // Extract user's last message
 const prompt = messages.findLast((m) => m.role === "user")?.content;
 
-// Run 14-dimension weighted scorer
+// Run 15-dimension weighted scorer
 const decision = route(prompt, systemPrompt, maxTokens, {
   config: DEFAULT_ROUTING_CONFIG,
   modelPricing,
@@ -103,26 +102,7 @@ const decision = route(prompt, systemPrompt, maxTokens, {
 // }
 ```
 
-### 4. Balance Check
-
-```typescript
-const estimated = estimateAmount(modelId, bodyLength, maxTokens);
-const sufficiency = await balanceMonitor.checkSufficient(estimated);
-
-if (sufficiency.info.isEmpty) {
-  throw new EmptyWalletError(walletAddress);
-}
-
-if (!sufficiency.sufficient) {
-  throw new InsufficientFundsError({ ... });
-}
-
-if (sufficiency.info.isLow) {
-  onLowBalance({ balanceUSD, walletAddress });
-}
-```
-
-### 5. SSE Heartbeat (for streaming)
+### 4. SSE Heartbeat (for streaming)
 
 ```typescript
 if (isStreaming) {
@@ -139,30 +119,26 @@ if (isStreaming) {
 }
 ```
 
-### 6. x402 Payment Flow
-
-```
-1. Request → BlockRun API
-2. ← 402 Payment Required
-   {
-     "x402Version": 1,
-     "accepts": [{
-       "scheme": "exact",
-       "network": "base",
-       "maxAmountRequired": "5000",  // $0.005
-       "resource": "https://blockrun.ai/api/v1/chat/completions",
-       "payTo": "0x..."
-     }]
-   }
-3. Sign EIP-712 typed data with wallet key
-4. Retry with X-PAYMENT header
-5. ← 200 OK with response
-```
-
-### 7. Fallback Chain (on provider errors)
+### 5. Provider Selection
 
 ```typescript
-const FALLBACK_STATUS_CODES = [400, 401, 402, 403, 429, 500, 502, 503, 504];
+// Get primary provider based on priority
+const provider = await registry.getPrimary();
+
+// Check provider health
+const isHealthy = await provider.healthCheck();
+
+// Fallback to next provider if unhealthy
+if (!isHealthy) {
+  const fallback = await registry.getNext();
+  // ...
+}
+```
+
+### 6. Fallback Chain (on provider errors)
+
+```typescript
+const FALLBACK_STATUS_CODES = [400, 401, 429, 500, 502, 503, 504];
 
 for (const model of fallbackChain) {
   const result = await tryModelRequest(model, ...);
@@ -180,11 +156,10 @@ for (const model of fallbackChain) {
 }
 ```
 
-### 8. Response Streaming
+### 7. Response Streaming
 
 ```typescript
-// Convert non-streaming JSON to SSE format
-// (BlockRun API returns JSON, we simulate SSE)
+// Convert non-streaming JSON to SSE format if needed
 
 // Chunk 1: role
 data: {"id":"...","object":"chat.completion.chunk","choices":[{"delta":{"role":"assistant"}}]}
@@ -204,7 +179,7 @@ data: [DONE]
 
 ### Weighted Scorer
 
-The routing engine uses a 14-dimension weighted scorer that runs entirely locally:
+The routing engine uses a 15-dimension weighted scorer that runs entirely locally:
 
 ```typescript
 function classifyByRules(
@@ -229,7 +204,7 @@ function classifyByRules(
     signals.push("code");
   }
 
-  // ... 12 more dimensions
+  // ... 13 more dimensions
 
   // Sigmoid calibration
   const confidence = sigmoid(score, (k = 8), (midpoint = 0.5));
@@ -276,85 +251,11 @@ if (systemPrompt?.includes("json") || systemPrompt?.includes("yaml")) {
 
 ---
 
-## Payment System
-
-### x402 Protocol
-
-OpenClaw Router uses the [x402 protocol](https://x402.org) for micropayments:
-
-```
-┌────────────┐     ┌────────────┐     ┌────────────┐
-│   Client   │────▶│  BlockRun  │────▶│  Provider  │
-│ (OpenClaw Router)     │    API     │     │ (OpenAI)   │
-└────────────┘     └────────────┘     └────────────┘
-      │                  │
-      │ 1. Request       │
-      │─────────────────▶│
-      │                  │
-      │ 2. 402 + price   │
-      │◀─────────────────│
-      │                  │
-      │ 3. Sign payment  │
-      │ (EIP-712 USDC)   │
-      │                  │
-      │ 4. Retry + sig   │
-      │─────────────────▶│
-      │                  │
-      │ 5. Response      │
-      │◀─────────────────│
-```
-
-### EIP-712 Signing
-
-```typescript
-const typedData = {
-  types: {
-    Payment: [
-      { name: "scheme", type: "string" },
-      { name: "network", type: "string" },
-      { name: "amount", type: "uint256" },
-      { name: "resource", type: "string" },
-      { name: "payTo", type: "address" },
-      { name: "nonce", type: "uint256" },
-    ],
-  },
-  primaryType: "Payment",
-  domain: { name: "x402", version: "1" },
-  message: {
-    scheme: "exact",
-    network: "base",
-    amount: "5000", // 0.005 USDC (6 decimals)
-    resource: "https://blockrun.ai/api/v1/chat/completions",
-    payTo: "0x...",
-    nonce: Date.now(),
-  },
-};
-
-const signature = await account.signTypedData(typedData);
-```
-
-### Pre-Authorization
-
-To skip the 402 round trip:
-
-```typescript
-// Estimate cost before request
-const estimated = estimateAmount(modelId, bodyLength, maxTokens);
-
-// Pre-sign payment with estimate (+ 20% buffer)
-const preAuth: PreAuthParams = { estimatedAmount: estimated };
-
-// Request with pre-signed payment
-const response = await payFetch(url, init, preAuth);
-```
-
----
-
 ## Optimizations
 
 ### 1. Request Deduplication
 
-Prevents double-charging when clients retry after timeout:
+Prevents duplicate requests on retries:
 
 ```typescript
 class RequestDeduplicator {
@@ -378,7 +279,7 @@ class RequestDeduplicator {
 
 ### 2. SSE Heartbeat
 
-Prevents upstream timeout while waiting for x402 payment:
+Prevents upstream timeout while waiting for provider response:
 
 ```
 0s:  Request received
@@ -386,43 +287,12 @@ Prevents upstream timeout while waiting for x402 payment:
 0s:  → : heartbeat
 2s:  → : heartbeat  (client stays connected)
 4s:  → : heartbeat
-5s:  x402 payment completes
+5s:  Provider response completes
 5s:  → data: {"choices":[...]}
 5s:  → data: [DONE]
 ```
 
-### 3. Balance Caching
-
-Avoids RPC calls on every request:
-
-```typescript
-class BalanceMonitor {
-  private cachedBalance: bigint | undefined;
-  private cacheTime = 0;
-  private CACHE_TTL_MS = 60_000; // 1 minute
-
-  async checkBalance(): Promise<BalanceInfo> {
-    if (this.cachedBalance !== undefined && Date.now() - this.cacheTime < this.CACHE_TTL_MS) {
-      return this.formatBalance(this.cachedBalance);
-    }
-
-    // Fetch from Base RPC
-    const balance = await this.fetchUSDCBalance();
-    this.cachedBalance = balance;
-    this.cacheTime = Date.now();
-    return this.formatBalance(balance);
-  }
-
-  // Optimistic deduction after successful payment
-  deductEstimated(amount: bigint): void {
-    if (this.cachedBalance !== undefined) {
-      this.cachedBalance -= amount;
-    }
-  }
-}
-```
-
-### 4. Proxy Reuse
+### 3. Proxy Reuse
 
 Detects and reuses existing proxy to avoid `EADDRINUSE`:
 
@@ -431,13 +301,12 @@ async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
   const port = options.port ?? getProxyPort();
 
   // Check if proxy already running
-  const existingWallet = await checkExistingProxy(port);
-  if (existingWallet) {
+  const existing = await checkExistingProxy(port);
+  if (existing) {
     // Return handle that uses existing proxy
     return {
       port,
       baseUrl: `http://127.0.0.1:${port}`,
-      walletAddress: existingWallet,
       close: async () => {},  // No-op
     };
   }
@@ -459,18 +328,27 @@ src/
 ├── proxy.ts          # HTTP proxy server, request handling
 ├── provider.ts       # OpenClaw provider registration
 ├── models.ts         # 30+ model definitions with pricing
-├── auth.ts           # Wallet key resolution (file → env → generate)
-├── x402.ts           # EIP-712 payment signing, @x402/fetch
-├── balance.ts        # USDC balance monitoring, caching
 ├── dedup.ts          # Request deduplication (SHA-256 → cache)
-├── payment-cache.ts  # Pre-authorization caching
 ├── logger.ts         # JSON usage logging to disk
 ├── errors.ts         # Custom error types
 ├── retry.ts          # Fetch retry with exponential backoff
 ├── version.ts        # Version from package.json
+├── providers/
+│   ├── types.ts              # Provider type definitions
+│   ├── registry.ts           # Provider registry
+│   ├── factory.ts            # Provider factory
+│   ├── config.ts             # Configuration loader
+│   ├── auth/
+│   │   ├── types.ts          # Auth strategy interface
+│   │   ├── api-key.ts        # API Key authentication
+│   │   └── ...
+│   └── implementations/
+│       ├── blockrun.ts       # BlockRun provider
+│       ├── openrouter.ts     # OpenRouter provider
+│       └── ...
 └── router/
     ├── index.ts      # route() entry point
-    ├── rules.ts      # 14-dimension weighted scorer
+    ├── rules.ts      # 15-dimension weighted scorer
     ├── selector.ts   # Tier → model selection + fallback
     ├── config.ts     # Default routing configuration
     └── types.ts      # TypeScript type definitions
@@ -481,7 +359,6 @@ src/
 | File              | Purpose                                               |
 | ----------------- | ----------------------------------------------------- |
 | `proxy.ts`        | Core request handling, SSE simulation, fallback chain |
-| `router/rules.ts` | 14-dimension weighted scorer, multilingual keywords   |
-| `x402.ts`         | EIP-712 typed data signing, payment header formatting |
-| `balance.ts`      | USDC balance via Base RPC, caching, thresholds        |
+| `router/rules.ts` | 15-dimension weighted scorer, multilingual keywords   |
 | `dedup.ts`        | SHA-256 hashing, 30s response cache                   |
+| `providers/`      | Multi-provider support and authentication             |
