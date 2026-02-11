@@ -10,10 +10,6 @@
 
 import { startProxy } from "../dist/index.js";
 
-const TEST_WALLET_KEY =
-  process.env.BLOCKRUN_WALLET_KEY ||
-  "0xd786859744b4a2a9a6dd99139785d9f9d5631c7d0c3b3bfdf1b7108dd8a6e5b8";
-
 const TEST_PORT = 8498;
 
 interface TestResult {
@@ -51,20 +47,12 @@ async function main() {
     // Start proxy
     console.log("Starting proxy...");
     proxy = await startProxy({
-      walletKey: TEST_WALLET_KEY,
       port: TEST_PORT,
       onReady: (port) => console.log(`Proxy ready on port ${port}`),
       onError: (err) => console.error("Proxy error:", err.message),
     });
 
-    console.log(`Wallet: ${proxy.walletAddress}`);
-    const balance = await proxy.balanceMonitor.checkBalance();
-    console.log(`Balance: $${balance.balanceUSD}\n`);
-
-    if (balance.isEmpty) {
-      console.log("⚠ Wallet is empty, skipping paid tests");
-      return;
-    }
+    console.log(`Proxy started on port ${TEST_PORT}\n`);
 
     // Invalid tool IDs that would fail Anthropic's pattern validation
     const INVALID_TOOL_IDS = [

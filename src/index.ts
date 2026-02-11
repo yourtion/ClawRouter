@@ -60,6 +60,17 @@ import { VERSION } from "./version.js";
 import { getStats, formatStatsAscii } from "./stats.js";
 
 /**
+ * Detect if we're running in install mode.
+ * When `openclaw plugins install/uninstall` runs, skip proxy startup to prevent hanging.
+ */
+function isInstallMode(): boolean {
+  const args = process.argv;
+  // Check for: openclaw plugins install/uninstall
+  // argv includes: openclaw, plugins, install/uninstall
+  return args.some((arg) => arg === "plugins") && args.some((arg) => arg === "install" || arg === "uninstall");
+}
+
+/**
  * Detect if we're running in shell completion mode.
  * When `openclaw completion --shell zsh` runs, it loads plugins but only needs
  * the completion script output - any stdout logging pollutes the script and
@@ -557,6 +568,11 @@ const plugin: OpenClawPluginDefinition = {
 
     // Start API proxy and wait for it to be ready
     // Must happen in register() for CLI command support (services only start with gateway)
+    if (isInstallMode()) {
+      api.logger.info("Installation mode — proxy will start when gateway runs");
+      return;
+    }
+
     try {
       await startProxyInBackground(api);
 
