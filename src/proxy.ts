@@ -47,7 +47,7 @@ import {
 const BLOCKRUN_API = "https://blockrun.ai/api";
 const AUTO_MODEL = "blockrun/auto";
 const AUTO_MODEL_SHORT = "auto"; // OpenClaw strips provider prefix
-const FREE_MODEL = "nvidia/gpt-oss-120b"; // Free model for empty wallet fallback
+const FREE_MODEL = "nvidia/gpt-oss-120b"; // Free model for API key fallback
 const HEARTBEAT_INTERVAL_MS = 2_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 180_000; // 3 minutes (allows for on-chain tx + LLM response)
 const DEFAULT_PORT = 8402;

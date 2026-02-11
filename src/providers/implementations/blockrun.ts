@@ -1,11 +1,8 @@
 /**
  * BlockRun Provider Implementation
  *
- * NOTE: This provider implementation uses API key authentication.
- * The project has migrated from x402 blockchain payments to standard API key auth.
- * No wallet, payment signing, or blockchain interaction is required.
- *
- * Uses the IProvider interface with API key authentication.
+ * Uses API key authentication.
+ * No wallet or payment signing is required.
  */
 
 import type {
